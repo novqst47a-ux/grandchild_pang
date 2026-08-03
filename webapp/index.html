@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#fff8e9">
+  <meta name="description" content="큰 블록과 쉬운 조작으로 즐기는 고령자·저시력자용 5×5 매치3 게임">
+  <title>손주팡 — 큰 블록 매치3</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand" aria-label="손주팡">
+        <span class="brand-mark" aria-hidden="true">♥</span>
+        <span>손주팡</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button" id="soundButton" type="button" aria-pressed="false" aria-label="소리 끄기">
+          <span aria-hidden="true">🔊</span><span class="button-label">소리</span>
+        </button>
+        <button class="icon-button" id="openSettingsButton" type="button" aria-haspopup="dialog">
+          <span aria-hidden="true">⚙</span><span class="button-label">꾸미기</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="scoreboard" aria-label="게임 현황">
+      <div class="score-card">
+        <span class="score-label">점수</span>
+        <strong id="scoreValue">0</strong>
+      </div>
+      <div class="message-card" id="messageCard">
+        <strong id="messageTitle">같은 블록 3개를 모아보세요!</strong>
+        <span id="messageText">블록을 누른 뒤 옆 블록을 누르세요.</span>
+      </div>
+      <div class="score-card moves-card">
+        <span class="score-label">남은 이동</span>
+        <strong id="movesValue">20</strong>
+      </div>
+    </section>
+
+    <section class="game-area" aria-label="매치3 게임판">
+      <div class="board-wrap">
+        <div class="board" id="board" role="grid" aria-label="5행 5열 게임판" aria-busy="false"></div>
+        <div class="celebration-popup" id="celebrationPopup" hidden aria-hidden="true">
+          <img id="celebrationImage" src="assets/celebrations/good.png" alt="">
+        </div>
+        <div class="board-overlay" id="boardOverlay" hidden>
+          <div class="overlay-card">
+            <span class="overlay-kicker">참 잘했어요!</span>
+            <h1>게임 끝</h1>
+            <p>최종 점수 <strong id="finalScore">0점</strong></p>
+            <button class="primary-button" id="restartButton" type="button">다시 시작</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="help-row" aria-label="게임 도움말">
+      <button class="wide-button" id="hintButton" type="button"><span aria-hidden="true">💡</span> 힌트 보기</button>
+      <button class="wide-button" id="newGameButton" type="button"><span aria-hidden="true">↻</span> 새 게임</button>
+    </section>
+
+    <p class="sr-only" id="liveStatus" aria-live="polite"></p>
+  </main>
+
+  <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+    <form method="dialog" class="dialog-header">
+      <div>
+        <span class="eyebrow">내 사진으로 만드는</span>
+        <h2 id="settingsTitle">블록 꾸미기</h2>
+      </div>
+      <button class="close-button" value="close" aria-label="꾸미기 닫기">×</button>
+    </form>
+
+    <div class="settings-body">
+      <section class="settings-section">
+        <div class="section-title">
+          <span class="step">1</span>
+          <div><h3>바꿀 블록 선택</h3><p>다섯 종류를 각각 꾸밀 수 있어요.</p></div>
+        </div>
+        <div class="slot-list" id="slotList" role="radiogroup" aria-label="바꿀 블록"></div>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-title">
+          <span class="step">2</span>
+          <div><h3>사진과 모양 선택</h3><p>사진은 서버로 전송되지 않아요.</p></div>
+        </div>
+        <div class="photo-actions">
+          <button class="action-button" id="cameraButton" type="button"><span aria-hidden="true">📷</span> 카메라</button>
+          <button class="action-button" id="galleryButton" type="button"><span aria-hidden="true">▣</span> 사진 선택</button>
+          <button class="action-button subtle" id="sampleButton" type="button">샘플 사진</button>
+        </div>
+        <input class="sr-only" id="cameraInput" type="file" accept="image/*" capture="environment">
+        <input class="sr-only" id="galleryInput" type="file" accept="image/*">
+
+        <div class="frame-list" id="frameList" role="radiogroup" aria-label="사진 프레임"></div>
+
+        <div class="crop-layout">
+          <div class="crop-stage">
+            <canvas id="cropCanvas" width="360" height="360" aria-label="사진 자르기 미리보기"></canvas>
+            <span id="cropHint">사진을 먼저 선택하세요</span>
+          </div>
+          <div class="crop-controls">
+            <label for="zoomRange">사진 크기 <output id="zoomOutput">100%</output></label>
+            <input id="zoomRange" type="range" min="70" max="500" value="100">
+            <label for="holeRange">사진 영역 <output id="holeOutput">82%</output></label>
+            <input id="holeRange" type="range" min="62" max="96" value="82">
+            <button class="action-button subtle" id="resetCropButton" type="button">위치 초기화</button>
+          </div>
+        </div>
+
+        <div class="apply-row">
+          <button class="secondary-button" id="restoreSlotButton" type="button">기본 블록으로</button>
+          <button class="primary-button" id="applyBlockButton" type="button" disabled>이 블록에 적용</button>
+        </div>
+      </section>
+
+      <section class="settings-section preset-section">
+        <div class="section-title">
+          <span class="step">3</span>
+          <div><h3>프리셋 보관</h3><p>영구 저장 대신 파일로 내보내고 다시 불러와요.</p></div>
+        </div>
+        <div class="preset-actions">
+          <button class="action-button" id="exportPresetButton" type="button">프리셋 저장</button>
+          <button class="action-button" id="importPresetButton" type="button">프리셋 불러오기</button>
+          <input class="sr-only" id="presetInput" type="file" accept="application/json,.json">
+        </div>
+        <button class="danger-button" id="resetCustomBlocksButton" type="button">꾸민 블록 전체 초기화</button>
+        <p class="privacy-note" id="storageStatus">꾸민 블록은 이 기기에 자동 저장되며 직접 초기화하거나 앱 데이터를 지울 때까지 유지됩니다.</p>
+      </section>
+
+      <section class="settings-section future-section" aria-disabled="true">
+        <div class="section-title">
+          <span class="step future">+</span>
+          <div><h3>칭찬 효과</h3><p>파티클 옵션이 들어갈 자리예요. MVP 완성 후 추가합니다.</p></div>
+        </div>
+        <button class="disabled-preview" type="button" disabled>효과 설정 — 준비 중</button>
+      </section>
+    </div>
+
+    <form method="dialog" class="dialog-footer">
+      <button class="primary-button" value="close">게임으로 돌아가기</button>
+    </form>
+  </dialog>
+
+  <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirmTitle">
+    <div class="confirm-content">
+      <span aria-hidden="true" class="confirm-icon">↻</span>
+      <h2 id="confirmTitle">새 게임을 시작할까요?</h2>
+      <p>현재 점수와 남은 이동 횟수가 초기화됩니다.</p>
+      <div class="confirm-actions">
+        <button id="cancelNewGameButton" class="secondary-button" type="button">계속하기</button>
+        <button id="confirmNewGameButton" class="primary-button" type="button">새 게임</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

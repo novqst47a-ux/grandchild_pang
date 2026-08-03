@@ -1,0 +1,17 @@
+{
+  "name": "손주팡 — 큰 블록 매치3",
+  "short_name": "손주팡",
+  "description": "고령자와 저시력자를 위한 큰 블록 매치3 게임",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff8e9",
+  "theme_color": "#fff8e9",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

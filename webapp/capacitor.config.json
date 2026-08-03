@@ -1,0 +1,8 @@
+{
+  "appId": "com.sonjupang.game",
+  "appName": "손주팡",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
