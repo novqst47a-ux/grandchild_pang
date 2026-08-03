@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#141821">
+<title>사진 블록 생성기 프로토타입</title>
+<style>
+  :root{
+    --bg:#141821; --panel:#1e2430; --panel2:#262e3d; --line:#333d4f;
+    --fg:#e8edf5; --dim:#98a4b8; --accent:#4dd0a7; --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0}
+  body{
+    background:var(--bg); color:var(--fg);
+    font:15px/1.5 -apple-system,"Noto Sans KR","Malgun Gothic",Roboto,sans-serif;
+    padding:12px 12px calc(24px + env(safe-area-inset-bottom));
+    max-width:520px; margin:0 auto;
+    overscroll-behavior-y:contain;
+  }
+  h1{font-size:17px; margin:4px 0 2px}
+  .sub{color:var(--dim); font-size:12px; margin:0 0 14px}
+  section{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:12px}
+  h2{font-size:13px; margin:0 0 10px; color:var(--dim); font-weight:600; letter-spacing:.02em}
+  h2 b{color:var(--accent); font-weight:700; margin-right:6px}
+
+  /* 프레임 선택 */
+  .frames{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch}
+  .fchip{
+    flex:0 0 auto; width:76px; background:var(--panel2); border:2px solid transparent;
+    border-radius:12px; padding:6px 4px 5px; cursor:pointer; text-align:center;
+  }
+  .fchip canvas{width:60px; height:60px; display:block; margin:0 auto}
+  .fchip span{display:block; font-size:11px; color:var(--dim); margin-top:3px}
+  .fchip[aria-pressed="true"]{border-color:var(--accent); background:#2b3a3a}
+  .fchip[aria-pressed="true"] span{color:var(--accent)}
+
+  /* 버튼 */
+  .row{display:flex; gap:8px; flex-wrap:wrap}
+  button{
+    font:inherit; font-size:14px; color:var(--fg); background:var(--panel2);
+    border:1px solid var(--line); border-radius:10px; padding:11px 12px; cursor:pointer;
+    flex:1 1 0; min-width:88px;
+  }
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#0d1a16; font-weight:700}
+  button.ghost{background:transparent}
+  button.danger{color:var(--danger); border-color:#5a2c2c; background:transparent}
+  button:disabled{opacity:.4; cursor:default}
+  input[type=file]{display:none}
+
+  /* 크롭 */
+  .stage{position:relative; width:100%; max-width:320px; margin:0 auto 10px}
+  #crop{
+    width:100%; aspect-ratio:1/1; display:block; border-radius:14px;
+    background:
+      repeating-conic-gradient(#232a36 0 25%, #1b212b 0 50%) 0 0/20px 20px;
+    touch-action:none; cursor:grab;
+  }
+  .hint{position:absolute; left:0; right:0; bottom:8px; text-align:center; font-size:11px;
+        color:#cfd8e6; text-shadow:0 1px 3px #000; pointer-events:none}
+  .slider{display:flex; align-items:center; gap:10px; margin:8px 0}
+  .slider label{font-size:12px; color:var(--dim); flex:0 0 76px}
+  .slider input{flex:1; accent-color:var(--accent)}
+  .slider output{font-size:12px; color:var(--fg); flex:0 0 52px; text-align:right; font-variant-numeric:tabular-nums}
+
+  /* 저장 목록 */
+  .gridwrap{background:#0f131a; border:1px solid var(--line); border-radius:12px; padding:10px; min-height:96px}
+  .grid{display:flex; flex-wrap:wrap; gap:8px}
+  /* 보드 크기 비교 모드: 삭제 버튼을 감춰 실루엣 판별을 방해하지 않게 한다 */
+  .grid.compact{gap:5px}   /* 56px 블록 5개가 한 줄에 들어가도록 */
+  .grid.compact .del{display:none}
+  .tile{position:relative; width:var(--sz,72px); height:var(--sz,72px); cursor:pointer}
+  .tile img{width:100%; height:100%; display:block; border-radius:8px; transition:transform .12s ease}
+  .tile.pop img{transform:scale(1.18)}
+  .tile .del{
+    position:absolute; top:-6px; right:-6px; width:20px; height:20px; min-width:0; flex:none;
+    padding:0; border-radius:50%; font-size:13px; line-height:1; background:#000a; border:1px solid var(--line); color:#fff;
+  }
+  .empty{color:var(--dim); font-size:12px; padding:26px 0; text-align:center}
+  .seg{display:flex; gap:0; margin:0 0 10px}
+  .seg button{flex:1; border-radius:0; min-width:0; padding:7px 0; font-size:12px}
+  .seg button:first-child{border-radius:9px 0 0 9px}
+  .seg button:last-child{border-radius:0 9px 9px 0}
+  .seg button[aria-pressed="true"]{background:var(--accent); color:#0d1a16; border-color:var(--accent); font-weight:700}
+
+  .note{font-size:12px; color:var(--dim); margin:8px 0 0}
+  .note b{color:var(--fg)}
+  details{margin-top:2px}
+  summary{font-size:12px; color:var(--dim); cursor:pointer; padding:4px 0}
+  #log{
+    font:11px/1.6 ui-monospace,Menlo,Consolas,monospace; color:#b9c6d8;
+    background:#0f131a; border:1px solid var(--line); border-radius:10px;
+    padding:8px; max-height:210px; overflow:auto; white-space:pre-wrap; word-break:break-all;
+  }
+  #log .ok{color:#5fd6a8} #log .warn{color:#ffcc66} #log .err{color:#ff8080}
+
+  #fx{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:99}
+  .toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+    background:#000d; color:#fff; padding:9px 16px; border-radius:20px; font-size:13px;
+    z-index:100; opacity:0; transition:opacity .2s; pointer-events:none;
+  }
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<h1>사진 블록 생성기 — 파이프라인 검증</h1>
+<p class="sub">프레임 선택 → 사진 입력 → 크롭 → 256px WebP 합성 → IndexedDB 저장 → 파티클</p>
+
+<section>
+  <h2><b>1</b>프레임 선택</h2>
+  <div class="frames" id="frames"></div>
+</section>
+
+<section>
+  <h2><b>2</b>사진 입력</h2>
+  <div class="row">
+    <button id="btnCam">📷 카메라</button>
+    <button id="btnGal">🖼 갤러리</button>
+    <button id="btnSample" class="ghost">샘플</button>
+  </div>
+  <input type="file" id="fileCam" accept="image/*" capture="environment">
+  <input type="file" id="fileGal" accept="image/*">
+  <p class="note">카메라 버튼은 <b>capture="environment"</b>, 갤러리 버튼은 capture 없음.
+     안드로이드 크롬에서 두 경로가 각각 어떻게 열리는지 비교용으로 나눠 두었습니다.</p>
+</section>
+
+<section>
+  <h2><b>3</b>크롭 (한 손가락 드래그 · 두 손가락 핀치 줌)</h2>
+  <div class="stage">
+    <canvas id="crop"></canvas>
+    <div class="hint" id="cropHint">사진을 먼저 선택하세요</div>
+  </div>
+  <div class="slider">
+    <label for="sZoom">줌</label>
+    <input type="range" id="sZoom" min="50" max="800" value="100" step="1">
+    <output id="oZoom">1.00×</output>
+  </div>
+  <div class="slider">
+    <label for="sHole">프레임 비중</label>
+    <input type="range" id="sHole" min="50" max="105" value="85" step="1">
+    <output id="oHole">85%</output>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <button id="btnReset" class="ghost">위치 초기화</button>
+    <button id="btnSave" class="primary" disabled>블록 저장</button>
+  </div>
+  <p class="note">프레임 비중 슬라이더는 <b>구멍 크기</b>입니다. 값을 줄일수록 사진 영역이 작아지고
+     프레임 실루엣 비중이 커집니다 — 블록 구분이 어려우면 여기부터 조정하세요.</p>
+</section>
+
+<section>
+  <h2><b>4</b>저장된 블록</h2>
+  <div class="seg" id="segSize">
+    <button data-sz="56">보드 크기 56px</button>
+    <button data-sz="72" aria-pressed="true">72px</button>
+    <button data-sz="104">104px</button>
+  </div>
+  <div class="gridwrap"><div class="grid" id="grid"><div class="empty">아직 저장된 블록이 없습니다</div></div></div>
+  <p class="note" id="storeInfo">저장소 상태 확인 중…</p>
+  <div class="row" style="margin-top:8px">
+    <button id="btnPersist" class="ghost">영구 저장 요청</button>
+    <button id="btnClear" class="danger">전체 초기화</button>
+  </div>
+  <p class="note">블록을 <b>탭</b>하면 블록 얼굴이 작게 여러 개로 폭죽처럼 퍼집니다(조각내기 아님).
+     <b>56px</b>는 실제 보드 크기 비교용이라 개별 삭제(×) 버튼을 숨깁니다.</p>
+</section>
+
+<section>
+  <details open>
+    <summary>진단 로그</summary>
+    <div id="log"></div>
+  </details>
+</section>
+
+<canvas id="fx"></canvas>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const TAU = Math.PI * 2;
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+
+/* ─────────────────────────────  로그 / 토스트  ───────────────────────────── */
+const logEl = $('#log');
+function log(msg, cls){
+  const t = new Date().toTimeString().slice(0,8);
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = `[${t}] ${msg}`;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+let toastTimer;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 1600);
+}
+
+/* ─────────────────────────────  경로 헬퍼  ─────────────────────────────
+   프레임/구멍은 모두 256×256 좌표계에서 정의하고, 렌더 시 크기만 스케일한다. */
+const mid = (a,b) => ({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
+
+function roundedPoly(pts, r){
+  const p = new Path2D(), n = pts.length;
+  const s = mid(pts[n-1], pts[0]);
+  p.moveTo(s.x, s.y);
+  for (let i = 0; i < n; i++){
+    const c = pts[i], m = mid(pts[i], pts[(i+1)%n]);
+    p.arcTo(c.x, c.y, m.x, m.y, r);
+    p.lineTo(m.x, m.y);
+  }
+  p.closePath();
+  return p;
+}
+function regularPoly(cx, cy, r, n, rot = -Math.PI/2){
+  const pts = [];
+  for (let i = 0; i < n; i++){
+    const a = rot + i*TAU/n;
+    pts.push({x: cx + Math.cos(a)*r, y: cy + Math.sin(a)*r});
+  }
+  return pts;
+}
+function starPoly(cx, cy, R, r, n = 5, rot = -Math.PI/2){
+  const pts = [];
+  for (let i = 0; i < n*2; i++){
+    const a = rot + i*Math.PI/n, rad = (i % 2) ? r : R;
+    pts.push({x: cx + Math.cos(a)*rad, y: cy + Math.sin(a)*rad});
+  }
+  return pts;
+}
+function circlePath(cx, cy, r){ const p = new Path2D(); p.arc(cx, cy, r, 0, TAU); return p; }
+function ellipsePath(cx, cy, rx, ry){ const p = new Path2D(); p.ellipse(cx, cy, rx, ry, 0, 0, TAU); return p; }
+function roundRectPath(cx, cy, w, h, r){
+  return roundedPoly([
+    {x:cx-w/2, y:cy-h/2}, {x:cx+w/2, y:cy-h/2},
+    {x:cx+w/2, y:cy+h/2}, {x:cx-w/2, y:cy+h/2}
+  ], r);
+}
+function shape(ctx, path, fill, stroke, lw){
+  if (fill){ ctx.fillStyle = fill; ctx.fill(path); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke(path); }
+}
+
+/* ─────────────────────────────  프레임 5종  ─────────────────────────────
+   외부 이미지 없이 전부 canvas 경로로 그린다.
+   색상(핑크/브라운/오렌지/퍼플/그린) + 실루엣(귀 모양) + 구멍 모양을 모두 다르게 잡아
+   56px 보드 크기에서도 구분되도록 한다. */
+const FRAMES = [
+  {
+    id:'rabbit', name:'토끼', line:'#F2609A',
+    hole:{ cx:128, cy:156, path:() => ellipsePath(128,156,72,68) },
+    draw(ctx){
+      for (const [x, rot] of [[86,-0.22],[170,0.22]]){
+        ctx.save(); ctx.translate(x,64); ctx.rotate(rot);
+        shape(ctx, ellipsePath(0,0,25,62), '#FFF0F5', '#F2609A', 8);
+        shape(ctx, ellipsePath(0,6,11,41), '#FF9DBE', null);
+        ctx.restore();
+      }
+      shape(ctx, circlePath(128,152,100), '#FFF0F5', '#F2609A', 9);
+      shape(ctx, circlePath(52,190,17), '#FFB6CE', null);
+      shape(ctx, circlePath(204,190,17), '#FFB6CE', null);
+    }
+  },
+  {
+    id:'bear', name:'곰', line:'#59371F',
+    hole:{ cx:128, cy:154, path:() => roundRectPath(128,154,144,138,44) },
+    draw(ctx){
+      for (const x of [58,198]){
+        shape(ctx, circlePath(x,68,37), '#8B5E3C', '#59371F', 8);
+        shape(ctx, circlePath(x,68,19), '#E0B490', null);
+      }
+      shape(ctx, circlePath(128,150,100), '#B0784F', '#59371F', 9);
+      shape(ctx, roundRectPath(128,236,52,26,13), '#E0B490', '#59371F', 6);
+    }
+  },
+  {
+    id:'cat', name:'고양이', line:'#C05A00',
+    hole:{ cx:128, cy:150, path:() => roundedPoly(regularPoly(128,150,80,4,-Math.PI/2), 34) },
+    draw(ctx){
+      const ear = [{x:44,y:96},{x:62,y:12},{x:120,y:56}];
+      shape(ctx, roundedPoly(ear,12), '#FFB259', '#C05A00', 8);
+      shape(ctx, roundedPoly(ear.map(p=>({x:256-p.x,y:p.y})),12), '#FFB259', '#C05A00', 8);
+      shape(ctx, roundedPoly(ear.map(p=>({x:128+(p.x-128)*.55, y:96+(p.y-96)*.55})),8), '#FFE0B2', null);
+      shape(ctx, roundedPoly(ear.map(p=>({x:256-(128+(p.x-128)*.55), y:96+(p.y-96)*.55})),8), '#FFE0B2', null);
+      shape(ctx, circlePath(128,152,98), '#FFB259', '#C05A00', 9);
+      ctx.strokeStyle = '#C05A00'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      for (const dy of [-10,4,18]){
+        ctx.beginPath(); ctx.moveTo(30,168+dy); ctx.lineTo(60,164+dy*0.8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(226,168+dy); ctx.lineTo(196,164+dy*0.8); ctx.stroke();
+      }
+    }
+  },
+  {
+    id:'star', name:'별', line:'#5B21B6',
+    hole:{ cx:128, cy:132, path:() => circlePath(128,132,60) },
+    draw(ctx){
+      shape(ctx, roundedPoly(starPoly(128,132,126,80),12), '#A78BFA', '#5B21B6', 9);
+      shape(ctx, roundedPoly(starPoly(128,132,96,66),10), '#C4B5FD', null);
+    }
+  },
+  {
+    id:'flower', name:'꽃', line:'#0B6B57',
+    hole:{ cx:128, cy:134, path:() => roundedPoly(regularPoly(128,134,64,6,-Math.PI/2), 20) },
+    draw(ctx){
+      for (let i = 0; i < 8; i++){
+        const a = -Math.PI/2 + i*TAU/8;
+        shape(ctx, circlePath(128+Math.cos(a)*76, 134+Math.sin(a)*76, 40), '#34D399', '#0B6B57', 7);
+      }
+      shape(ctx, circlePath(128,134,84), '#A7F3D0', '#0B6B57', 8);
+    }
+  }
+];
+
+/* 구멍 경로를 자기 중심 기준으로 스케일 */
+function holePath(frame, scale){
+  const base = frame.hole.path();
+  if (scale === 1) return base;
+  const {cx, cy} = frame.hole;
+  const p = new Path2D();
+  p.addPath(base, new DOMMatrix().translate(cx, cy).scale(scale).translate(-cx, -cy));
+  return p;
+}
+
+/* 프레임 레이어: 구멍이 실제로 뚫린 256×256 캔버스 (destination-out 마스크 합성) */
+const layerCache = new Map();
+function frameLayer(frame, scale){
+  const key = frame.id + '|' + scale.toFixed(3);
+  let c = layerCache.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  frame.draw(ctx);
+  const hole = holePath(frame, scale);
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';   // ← 구멍 뚫기
+  ctx.fill(hole);
+  ctx.restore();
+  ctx.save();                                          // 구멍 테두리(리브)
+  ctx.strokeStyle = frame.line; ctx.lineWidth = 8; ctx.stroke(hole);
+  ctx.restore();
+  layerCache.set(key, c);
+  return c;
+}
+
+/* ─────────────────────────────  상태  ───────────────────────────── */
+const state = {
+  frame: FRAMES[0],
+  holeScale: 0.85,
+  img: null,          // 작업용 이미지(다운스케일된 canvas 또는 ImageBitmap)
+  baseS: 1,           // 256 정사각을 cover 하는 기본 배율
+  tr: {x:0, y:0, s:1} // 화면 좌표계(256 기준) 평행이동 + 절대 배율
+};
+
+/* ─────────────────────────────  렌더  ───────────────────────────── */
+function drawPhoto(ctx, img, tr){
+  ctx.save();
+  ctx.translate(128 + tr.x, 128 + tr.y);
+  ctx.scale(tr.s, tr.s);
+  ctx.drawImage(img, -img.width/2, -img.height/2);
+  ctx.restore();
+}
+function renderBlock(ctx, size, {crop = false} = {}){
+  const {frame, holeScale, img, tr} = state;
+  ctx.save();
+  ctx.clearRect(0, 0, size, size);
+  ctx.scale(size/256, size/256);
+  ctx.imageSmoothingQuality = 'high';
+  const hole = holePath(frame, holeScale);
+  if (crop && img){                       // 구멍 밖 사진을 흐리게 보여줌 (크롭 가이드)
+    ctx.save(); ctx.globalAlpha = 0.22; drawPhoto(ctx, img, tr); ctx.restore();
+  }
+  ctx.save();
+  ctx.clip(hole);
+  ctx.fillStyle = '#DDE4EC'; ctx.fillRect(0, 0, 256, 256);
+  if (img) drawPhoto(ctx, img, tr);
+  ctx.restore();
+  ctx.drawImage(frameLayer(frame, holeScale), 0, 0);
+  ctx.restore();
+}
+
+/* 크롭 캔버스 */
+const cropCv = $('#crop');
+const cropCtx = cropCv.getContext('2d');
+let pendingFrame = 0;
+function scheduleRender(){
+  if (pendingFrame) return;
+  pendingFrame = requestAnimationFrame(() => { pendingFrame = 0; renderCrop(); });
+}
+function renderCrop(){ renderBlock(cropCtx, cropCv.width, {crop:true}); }
+function fitCanvas(){
+  const dpr = Math.min(devicePixelRatio || 1, 3);
+  const w = Math.max(1, Math.round(cropCv.getBoundingClientRect().width * dpr));
+  if (cropCv.width !== w){ cropCv.width = cropCv.height = w; }
+  renderCrop();
+}
+new ResizeObserver(fitCanvas).observe(cropCv);
+
+/* ─────────────────────────────  프레임 선택 UI  ───────────────────────────── */
+const framesEl = $('#frames');
+FRAMES.forEach(f => {
+  const b = document.createElement('button');
+  b.className = 'fchip'; b.type = 'button';
+  b.setAttribute('aria-pressed', String(f === state.frame));
+  const c = document.createElement('canvas');
+  c.width = c.height = 120;
+  const cx = c.getContext('2d');
+  cx.scale(120/256, 120/256);
+  cx.save(); cx.clip(holePath(f, 0.85));
+  cx.fillStyle = '#8fa0b8'; cx.fillRect(0,0,256,256); cx.restore();
+  cx.drawImage(frameLayer(f, 0.85), 0, 0);
+  b.append(c, Object.assign(document.createElement('span'), {textContent: f.name}));
+  b.onclick = () => {
+    state.frame = f;
+    [...framesEl.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    scheduleRender();
+  };
+  framesEl.appendChild(b);
+});
+
+/* ─────────────────────────────  사진 로딩 (EXIF 보정)  ───────────────────────────── */
+async function readExifOrientation(file){
+  try{
+    const buf = await file.slice(0, 256*1024).arrayBuffer();
+    const v = new DataView(buf);
+    if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return null;   // JPEG 아님
+    let off = 2;
+    while (off + 4 <= v.byteLength){
+      const marker = v.getUint16(off); off += 2;
+      if ((marker & 0xFF00) !== 0xFF00) return null;
+      const len = v.getUint16(off);
+      if (marker === 0xFFE1){
+        const s = off + 2;
+        if (s + 8 > v.byteLength || v.getUint32(s) !== 0x45786966) return null; // "Exif"
+        const tiff = s + 6;
+        const le = v.getUint16(tiff) === 0x4949;
+        const ifd = tiff + v.getUint32(tiff + 4, le);
+        const n = v.getUint16(ifd, le);
+        for (let i = 0; i < n; i++){
+          const e = ifd + 2 + i*12;
+          if (e + 12 > v.byteLength) break;
+          if (v.getUint16(e, le) === 0x0112) return v.getUint16(e + 8, le);
+        }
+        return null;
+      }
+      off += len;
+    }
+  }catch(_){}
+  return null;
+}
+
+function downscale(img, max = 1200){
+  const m = Math.max(img.width, img.height);
+  if (m <= max) return img;
+  const s = max/m;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+  const cx = c.getContext('2d');
+  cx.imageSmoothingQuality = 'high';
+  cx.drawImage(img, 0, 0, c.width, c.height);
+  if (img.close) img.close();
+  return c;
+}
+
+async function decode(file){
+  if (window.createImageBitmap){
+    try{
+      return {img: await createImageBitmap(file, {imageOrientation:'from-image'}), how:"createImageBitmap{from-image}"};
+    }catch(e){
+      log('createImageBitmap(from-image) 실패: ' + e.message, 'warn');
+      try{ return {img: await createImageBitmap(file), how:'createImageBitmap(default)'}; }
+      catch(e2){ log('createImageBitmap 실패: ' + e2.message, 'warn'); }
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try{
+    const im = new Image();
+    await new Promise((res, rej) => { im.onload = res; im.onerror = () => rej(new Error('image decode error')); im.src = url; });
+    if (im.decode) { try { await im.decode(); } catch(_){} }
+    return {img: im, how:'HTMLImageElement(fallback)'};
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+}
+
+async function useFile(file, label){
+  if (!file) return;
+  log(`── 입력(${label}): ${file.name || '(무명)'} / ${file.type || '?'} / ${(file.size/1024).toFixed(0)} KB`);
+  const t0 = performance.now();
+  const ori = await readExifOrientation(file);
+  let res;
+  try{ res = await decode(file); }
+  catch(e){ log('디코딩 실패: ' + e.message, 'err'); toast('사진을 읽지 못했습니다'); return; }
+  const raw = res.img;
+  const rw = raw.width, rh = raw.height;
+  const img = downscale(raw);
+  if (state.img && state.img.close) state.img.close();   // 이전 ImageBitmap 해제
+  state.img = img;
+  log(`디코딩: ${res.how} · ${(performance.now()-t0).toFixed(0)}ms`);
+  log(`EXIF Orientation: ${ori === null ? '없음/비JPEG' : ori}` +
+      ` → 결과 ${rw}×${rh} (${rh > rw ? '세로' : rw > rh ? '가로' : '정사각'})`,
+      (ori && ori > 4 && rh <= rw) ? 'err' : 'ok');
+  if (ori && ori > 4 && rh <= rw) log('⚠ 회전 EXIF인데 가로로 디코딩됨 — 보정 실패 의심', 'err');
+  if (img !== raw) log(`작업 해상도 축소: ${rw}×${rh} → ${img.width}×${img.height} (핀치 성능용)`);
+  resetTransform();
+  $('#btnSave').disabled = false;
+  $('#cropHint').textContent = '드래그 = 이동 · 두 손가락 = 줌';
+}
+
+function resetTransform(){
+  const img = state.img;
+  if (!img) return;
+  state.baseS = Math.max(256/img.width, 256/img.height);
+  state.tr = {x:0, y:0, s: state.baseS};
+  syncZoomUI();
+  scheduleRender();
+}
+function syncZoomUI(){
+  const z = state.baseS ? state.tr.s/state.baseS : 1;
+  $('#sZoom').value = String(Math.round(clamp(z, 0.5, 8)*100));
+  $('#oZoom').textContent = z.toFixed(2) + '×';
+}
+
+$('#btnCam').onclick = () => $('#fileCam').click();
+$('#btnGal').onclick = () => $('#fileGal').click();
+$('#fileCam').onchange = e => { useFile(e.target.files[0], 'capture=environment'); e.target.value = ''; };
+$('#fileGal').onchange = e => { useFile(e.target.files[0], 'capture 없음'); e.target.value = ''; };
+
+/* 데스크톱/빠른 반복 테스트용 합성 샘플 사진 (세로 3:4) */
+let sampleN = 0;
+$('#btnSample').onclick = () => {
+  const w = 600, h = 800, c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  const hue = (sampleN++ * 67) % 360;
+  const g = x.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, `hsl(${hue} 70% 62%)`); g.addColorStop(1, `hsl(${(hue+50)%360} 70% 38%)`);
+  x.fillStyle = g; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#FFE0BD'; x.beginPath(); x.ellipse(w/2, h*0.42, 150, 180, 0, 0, TAU); x.fill();
+  x.fillStyle = '#2b2b2b';
+  x.beginPath(); x.ellipse(w/2-58, h*0.40, 17, 23, 0, 0, TAU); x.fill();
+  x.beginPath(); x.ellipse(w/2+58, h*0.40, 17, 23, 0, 0, TAU); x.fill();
+  x.strokeStyle = '#c2452f'; x.lineWidth = 11; x.lineCap = 'round';
+  x.beginPath(); x.arc(w/2, h*0.44, 62, 0.25*Math.PI, 0.75*Math.PI); x.stroke();
+  x.fillStyle = '#fff'; x.font = 'bold 64px sans-serif'; x.textAlign = 'center';
+  x.fillText('세로 ' + sampleN, w/2, h - 60);
+  state.img = c;
+  log(`── 입력(샘플): 합성 이미지 ${w}×${h} (세로)`);
+  resetTransform();
+  $('#btnSave').disabled = false;
+  $('#cropHint').textContent = '드래그 = 이동 · 두 손가락 = 줌';
+};
+
+/* ─────────────────────────────  Pointer Events: 팬 + 핀치  ───────────────────────────── */
+const pointers = new Map();
+let gest = null, lastSingle = null;
+const toLocal = p => {                     // 화면 좌표 → 256 좌표계
+  const r = cropCv.getBoundingClientRect();
+  return {x: (p.x - r.left) * 256/r.width, y: (p.y - r.top) * 256/r.height};
+};
+const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+
+function resetGesture(){
+  const pts = [...pointers.values()];
+  lastSingle = pts.length === 1 ? {...pts[0]} : null;
+  gest = pts.length >= 2
+    ? {d: dist(pts[0], pts[1]), c: mid(pts[0], pts[1]), s: state.tr.s, x: state.tr.x, y: state.tr.y}
+    : null;
+}
+cropCv.addEventListener('pointerdown', e => {
+  if (!state.img) return;
+  cropCv.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  resetGesture();
+});
+cropCv.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  e.preventDefault();
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  const pts = [...pointers.values()];
+  const r = cropCv.getBoundingClientRect(), k = 256/r.width;
+  if (pts.length === 1 && lastSingle){
+    state.tr.x += (pts[0].x - lastSingle.x) * k;
+    state.tr.y += (pts[0].y - lastSingle.y) * k;
+    lastSingle = {...pts[0]};
+  } else if (pts.length >= 2 && gest){
+    const d = dist(pts[0], pts[1]);
+    const newS = clamp(gest.s * (d / (gest.d || 1)), state.baseS*0.5, state.baseS*8);
+    const c0 = toLocal(gest.c), c1 = toLocal(mid(pts[0], pts[1]));
+    const px = (c0.x - 128 - gest.x) / gest.s;   // 두 손가락 중심이 가리키던 사진 위 점
+    const py = (c0.y - 128 - gest.y) / gest.s;
+    state.tr.s = newS;
+    state.tr.x = c1.x - 128 - px*newS;           // 그 점을 새 중심에 고정
+    state.tr.y = c1.y - 128 - py*newS;
+    syncZoomUI();
+  }
+  scheduleRender();
+}, {passive:false});
+// pointerout/leave 는 캡처 중에도 발생해 드래그가 끊기므로 쓰지 않는다
+for (const ev of ['pointerup','pointercancel','lostpointercapture']){
+  cropCv.addEventListener(ev, e => { pointers.delete(e.pointerId); resetGesture(); });
+}
+cropCv.addEventListener('wheel', e => {          // 데스크톱 확인용
+  if (!state.img) return;
+  e.preventDefault();
+  const c = toLocal({x:e.clientX, y:e.clientY});
+  const newS = clamp(state.tr.s * (e.deltaY < 0 ? 1.12 : 1/1.12), state.baseS*0.5, state.baseS*8);
+  const px = (c.x - 128 - state.tr.x)/state.tr.s, py = (c.y - 128 - state.tr.y)/state.tr.s;
+  state.tr.s = newS;
+  state.tr.x = c.x - 128 - px*newS; state.tr.y = c.y - 128 - py*newS;
+  syncZoomUI(); scheduleRender();
+}, {passive:false});
+
+$('#sZoom').oninput = e => {
+  if (!state.img) return;
+  state.tr.s = state.baseS * (+e.target.value/100);
+  $('#oZoom').textContent = (+e.target.value/100).toFixed(2) + '×';
+  scheduleRender();
+};
+$('#sHole').oninput = e => {
+  state.holeScale = +e.target.value/100;
+  $('#oHole').textContent = e.target.value + '%';
+  scheduleRender();
+};
+$('#btnReset').onclick = resetTransform;
+
+/* ─────────────────────────────  IndexedDB  ───────────────────────────── */
+const DB_NAME = 'photoBlockProto', STORE = 'blocks';
+let dbp = null;
+function db(){
+  return dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, {keyPath:'id', autoIncrement:true});
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+}
+async function tx(mode, fn){
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(STORE, mode);
+    const req = fn(t.objectStore(STORE));
+    t.onerror = () => rej(t.error);
+    t.oncomplete = () => res(req && req.result);
+  });
+}
+const dbAdd    = rec => tx('readwrite', s => s.add(rec));
+const dbAll    = ()  => tx('readonly',  s => s.getAll());
+const dbDelete = id  => tx('readwrite', s => s.delete(id));
+const dbClear  = ()  => tx('readwrite', s => s.clear());
+
+/* ─────────────────────────────  합성 → WebP → 저장  ───────────────────────────── */
+async function toWebP(canvas){
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/webp', 0.92));
+  if (blob && blob.type === 'image/webp') return blob;
+  log('WebP 인코딩 미지원 → PNG로 폴백', 'warn');
+  return await new Promise(r => canvas.toBlob(r, 'image/png'));
+}
+
+$('#btnSave').onclick = async () => {
+  if (!state.img) return;
+  const t0 = performance.now();
+  const off = ('OffscreenCanvas' in window) ? new OffscreenCanvas(256, 256) : document.createElement('canvas');
+  off.width = off.height = 256;
+  const ctx = off.getContext('2d');
+  renderBlock(ctx, 256);                                     // 오프스크린 마스크 합성
+  let blob;
+  if (off.convertToBlob){
+    blob = await off.convertToBlob({type:'image/webp', quality:0.92});
+    if (blob.type !== 'image/webp'){ log('WebP 미지원 → PNG 폴백', 'warn'); }
+  } else {
+    blob = await toWebP(off);
+  }
+  await dbAdd({blob, frameId:state.frame.id, holeScale:state.holeScale, mime:blob.type, createdAt:Date.now()});
+  log(`저장: ${state.frame.name} · ${blob.type} · ${(blob.size/1024).toFixed(1)} KB · ${(performance.now()-t0).toFixed(0)}ms`, 'ok');
+  toast('블록 저장됨');
+  await requestPersist(true);
+  await refreshGrid();
+};
+
+/* ─────────────────────────────  저장 목록 그리드  ───────────────────────────── */
+const gridEl = $('#grid');
+let tileSize = 72, urls = [];
+async function refreshGrid(){
+  urls.forEach(URL.revokeObjectURL); urls = [];
+  gridEl.innerHTML = '';
+  let rows = [];
+  try{ rows = await dbAll(); }
+  catch(e){ log('IndexedDB 읽기 실패: ' + e.message, 'err'); }
+  if (!rows.length){
+    gridEl.innerHTML = '<div class="empty">아직 저장된 블록이 없습니다</div>';
+  } else {
+    for (const r of rows){
+      const url = URL.createObjectURL(r.blob); urls.push(url);
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.style.setProperty('--sz', tileSize + 'px');
+      const img = new Image();
+      img.src = url; img.alt = r.frameId; img.draggable = false;
+      const del = document.createElement('button');
+      del.className = 'del'; del.textContent = '×'; del.title = '삭제';
+      del.onclick = async ev => { ev.stopPropagation(); await dbDelete(r.id); await refreshGrid(); };
+      tile.append(img, del);
+      tile.onclick = () => {
+        const b = tile.getBoundingClientRect();
+        burst(img, b.left + b.width/2, b.top + b.height/2);
+        tile.classList.add('pop');
+        setTimeout(() => tile.classList.remove('pop'), 130);
+      };
+      gridEl.appendChild(tile);
+    }
+  }
+  updateStoreInfo(rows.length);
+}
+$('#segSize').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  tileSize = +b.dataset.sz;
+  [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.querySelectorAll('.tile').forEach(t => t.style.setProperty('--sz', tileSize + 'px'));
+  gridEl.classList.toggle('compact', tileSize <= 56);
+};
+$('#btnClear').onclick = async () => {
+  if (!confirm('저장된 블록을 모두 삭제할까요?')) return;
+  await dbClear();
+  log('전체 초기화 완료', 'ok');
+  toast('초기화됨');
+  await refreshGrid();
+};
+
+/* ─────────────────────────────  저장소 상태  ───────────────────────────── */
+let persisted = null;
+async function requestPersist(quiet){
+  if (!navigator.storage || !navigator.storage.persist){
+    if (!quiet) log('navigator.storage.persist 미지원', 'warn');
+    return;
+  }
+  if (persisted === true) return;
+  try{
+    persisted = await navigator.storage.persist();
+    log('navigator.storage.persist() → ' + persisted, persisted ? 'ok' : 'warn');
+  }catch(e){ log('persist() 오류: ' + e.message, 'err'); }
+  updateStoreInfo();
+}
+$('#btnPersist').onclick = () => requestPersist(false);
+let lastCount = 0;
+async function updateStoreInfo(count){
+  if (typeof count === 'number') lastCount = count;
+  const parts = [`블록 <b>${lastCount}</b>개`];
+  if (navigator.storage && navigator.storage.estimate){
+    try{
+      const e = await navigator.storage.estimate();
+      parts.push(`사용 <b>${((e.usage||0)/1024).toFixed(0)} KB</b> / 할당 ${((e.quota||0)/1048576/1024).toFixed(1)} GB`);
+    }catch(_){}
+  }
+  if (navigator.storage && navigator.storage.persisted){
+    try{ persisted = await navigator.storage.persisted(); }catch(_){}
+  }
+  parts.push('영구 저장: <b>' + (persisted === null ? '알 수 없음' : persisted ? '허용됨' : '아니오(임시)') + '</b>');
+  $('#storeInfo').innerHTML = parts.join(' · ');
+}
+
+/* ─────────────────────────────  파티클: 얼굴 그대로 작게 × 여러 개  ─────────────
+   요구사항대로 '조각내기'가 아니라, 블록 얼굴 전체를 축소 복제해 폭죽처럼 퍼뜨린다. */
+const fx = $('#fx'), fxCtx = fx.getContext('2d');
+let parts = [], fxRunning = false, lastT = 0;
+function fitFx(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  fx.width = Math.round(innerWidth*dpr); fx.height = Math.round(innerHeight*dpr);
+  fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener('resize', fitFx); fitFx();
+
+function burst(img, cx, cy){
+  const n = 18 + (Math.random()*6|0);
+  for (let i = 0; i < n; i++){
+    const a = -Math.PI/2 + (Math.random()-0.5)*Math.PI*1.7;
+    const sp = 190 + Math.random()*430;
+    parts.push({
+      img, x:cx, y:cy,
+      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+      size: 15 + Math.random()*21,      // 원본보다 확실히 작게
+      rot: Math.random()*TAU, vr: (Math.random()-0.5)*7,
+      t: 0, ttl: 0.75 + Math.random()*0.6
+    });
+  }
+  if (!fxRunning){ fxRunning = true; lastT = performance.now(); requestAnimationFrame(stepFx); }
+}
+function stepFx(now){
+  const dt = Math.min((now - lastT)/1000, 0.05); lastT = now;
+  fxCtx.clearRect(0, 0, fx.width, fx.height);
+  for (let i = parts.length-1; i >= 0; i--){
+    const p = parts[i];
+    p.t += dt;
+    if (p.t >= p.ttl){ parts.splice(i, 1); continue; }
+    p.vy += 1150*dt;                 // 중력
+    p.vx *= (1 - 1.1*dt); p.vy *= (1 - 0.25*dt);
+    p.x += p.vx*dt; p.y += p.vy*dt; p.rot += p.vr*dt;
+    const k = p.t/p.ttl;
+    fxCtx.save();
+    fxCtx.globalAlpha = k < 0.6 ? 1 : 1 - (k-0.6)/0.4;
+    fxCtx.translate(p.x, p.y); fxCtx.rotate(p.rot);
+    const s = p.size * (1 + 0.25*Math.sin(Math.PI*k));
+    fxCtx.drawImage(p.img, -s/2, -s/2, s, s);
+    fxCtx.restore();
+  }
+  if (parts.length) requestAnimationFrame(stepFx);
+  else { fxRunning = false; fxCtx.clearRect(0, 0, fx.width, fx.height); }
+}
+
+/* ─────────────────────────────  기동  ───────────────────────────── */
+document.addEventListener('gesturestart', e => e.preventDefault());  // iOS 사파리 페이지 줌 차단
+(async () => {
+  log(`UA: ${navigator.userAgent}`);
+  log(`화면 ${innerWidth}×${innerHeight} · dpr ${devicePixelRatio}`);
+  const probe = document.createElement('canvas'); probe.width = probe.height = 1;
+  log('WebP 인코딩: ' + (probe.toDataURL('image/webp').startsWith('data:image/webp') ? '지원' : '미지원(PNG 폴백)'),
+      probe.toDataURL('image/webp').startsWith('data:image/webp') ? 'ok' : 'warn');
+  log('createImageBitmap: ' + (window.createImageBitmap ? '지원' : '미지원'), window.createImageBitmap ? 'ok' : 'warn');
+  log('OffscreenCanvas: ' + ('OffscreenCanvas' in window ? '지원' : '미지원(일반 canvas 사용)'));
+  fitCanvas();
+  await refreshGrid();
+})();
+})();
+</script>
+</body>
+</html>

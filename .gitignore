@@ -1,0 +1,12 @@
+# Godot 에디터 바이너리 (내려받은 실행 파일, 저장소에 넣지 않음)
+/Godot_v4.7.1-stable_win64/
+
+# Godot 연습 프로젝트 (웹앱 전환 검토용 로컬 참고물)
+/practice/
+
+# OS / 에디터 잡파일
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
