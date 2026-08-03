@@ -47,8 +47,8 @@ test('DESIGN §1.1 색상 토큰이 모두 정의되어 있다', async () => {
     '--ink', '--ink-soft', '--ink-faint',
     '--carrot', '--carrot-deep', '--carrot-lip', '--carrot-tint',
     '--success', '--danger', '--reward', '--focus', '--focus-tint',
-    // 계획 문서 §5.1 / §5.4에서 추가한 보정 토큰
-    '--board', '--board-edge', '--ink-disabled',
+    // 계획 문서 §5.1 / §5.4 / §5.5에서 추가한 보정 토큰
+    '--board', '--board-edge', '--ink-disabled', '--btn-edge',
   ];
   const missing = required.filter((token) => !new RegExp(`${token}\\s*:`).test(css));
   assert.deepEqual(missing, [], `미정의 토큰: ${missing.join(', ')}`);

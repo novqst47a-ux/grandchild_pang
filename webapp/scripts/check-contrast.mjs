@@ -35,7 +35,9 @@ const PAIRS = [
   ['게임판 외곽선 / 게임판 바닥', '--board-edge', '--board', 'ui'],
   ['게임판 외곽선 / 앱 배경', '--board-edge', '--canvas', 'ui'],
   ['포커스 링 / 카드 면', '--focus', '--surface', 'ui'],
-  ['카드 립 / 앱 배경', '--line-strong', '--canvas', 'ui'],
+  // 게임 영역의 흰 버튼은 캔버스와 밝기가 거의 같다. 테두리·립이 유일한 경계다.
+  ['게임 버튼 테두리·립 / 앱 배경', '--btn-edge', '--canvas', 'ui'],
+  ['게임 버튼 테두리·립 / 버튼 면', '--btn-edge', '--surface', 'ui'],
 ];
 
 // docs/DESIGN.md §1.2 — 밝은 --carrot 위 흰 글자는 저시력 사용자에게 읽히지 않는다.

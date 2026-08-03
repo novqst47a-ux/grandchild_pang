@@ -567,7 +567,11 @@ $('#resetCustomBlocksButton').addEventListener('click', async () => {
 
 settingsDialog.addEventListener('close', () => $('#openSettingsButton').focus());
 
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
+// 개발 서버에서는 등록하지 않는다. sw.js는 cache-first라 styles.css는 물론
+// @vite/client와 의존성 모듈까지 캐시해, 코드를 고쳐도 화면이 바뀌지 않는다.
+if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 
 async function initializeApp() {
   renderFrames();
