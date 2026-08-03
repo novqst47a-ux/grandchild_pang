@@ -12,6 +12,8 @@ import {
   swapCells,
 } from './game-core.js';
 import {
+  BADGE_PATHS,
+  BLOCK_FORMAT_VERSION,
   DEFAULT_BLOCKS,
   FRAMES,
   customBlockDataUrl,
@@ -22,15 +24,20 @@ import {
   renderCustomBlock,
   safePresetData,
   samplePhoto,
+  upgradeBlockImage,
 } from './custom-blocks.js';
 import { clearCustomBlocks, loadCustomBlocks, saveCustomBlocks, storageKind } from './storage.js';
 
 const $ = (selector) => document.querySelector(selector);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, matchMedia('(prefers-reduced-motion: reduce)').matches ? 20 : ms));
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const LOW_MOVES = 3; // 이 아래로 남으면 남은 이동 카드를 경고 상태로 (DESIGN §5.2)
+
 const boardElement = $('#board');
 const scoreValue = $('#scoreValue');
 const movesValue = $('#movesValue');
+const movesCard = $('#movesCard');
 const messageTitle = $('#messageTitle');
 const messageText = $('#messageText');
 const liveStatus = $('#liveStatus');
@@ -77,6 +84,26 @@ function toast(text) {
 function updateStats() {
   scoreValue.textContent = score.toLocaleString('ko-KR');
   movesValue.textContent = String(moves);
+  const low = !gameOver && moves <= LOW_MOVES;
+  movesCard.classList.toggle('low', low);
+  // 색만 바꾸면 눈에 띄지 않는다. 줄어들 때마다 한 번씩 튀게 해서 알아채도록 한다.
+  movesCard.classList.remove('pulse');
+  if (low) { void movesCard.offsetWidth; movesCard.classList.add('pulse'); }
+}
+
+// 다섯 블록 면은 밝기가 거의 같아 색만으로는 구분되지 않는다.
+// 배지가 실제 구분 수단이므로 폰트에 의존하지 않는 SVG로 그린다(계획 D1-a).
+function blockBadge(type) {
+  const block = DEFAULT_BLOCKS[type];
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'tile-badge');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', BADGE_PATHS[block.shape]);
+  path.setAttribute('fill', block.colors[1]);
+  svg.append(path);
+  return svg;
 }
 
 function hideCelebration() {
@@ -114,16 +141,17 @@ function renderBoard() {
       button.setAttribute('role', 'gridcell');
       button.setAttribute('aria-rowindex', String(row + 1));
       button.setAttribute('aria-colindex', String(col + 1));
-      button.setAttribute('aria-label', `${row + 1}행 ${col + 1}열, ${DEFAULT_BLOCKS[type].name} 블록${button.dataset.selected === 'true' ? ', 선택됨' : ''}`);
+      button.setAttribute('aria-label', `${row + 1}행 ${col + 1}열, ${DEFAULT_BLOCKS[type].spoken}${button.dataset.selected === 'true' ? ', 선택됨' : ''}`);
       button.setAttribute('aria-selected', button.dataset.selected);
       button.disabled = busy || gameOver;
+      button.style.setProperty('--tile-lip', DEFAULT_BLOCKS[type].colors[1]);
       if (hintKeys.has(key)) button.classList.add('hint');
       const image = document.createElement('img');
       image.className = 'tile-visual';
       image.src = blockImage(type);
       image.alt = '';
       image.draggable = false;
-      button.append(image);
+      button.append(image, blockBadge(type));
       button.addEventListener('click', () => {
         if (performance.now() < ignoreClickUntil) return;
         chooseTile({ row, col });
@@ -257,6 +285,7 @@ function startGame() {
 function endGame() {
   busy = false;
   gameOver = true;
+  updateStats(); // 경고 상태를 해제한다. 게임이 끝난 뒤까지 빨갛게 둘 이유가 없다
   finalScore.textContent = `${score.toLocaleString('ko-KR')}점`;
   boardOverlay.hidden = false;
   setMessage('게임을 마쳤어요!', `최종 점수는 ${score.toLocaleString('ko-KR')}점이에요.`);
@@ -392,6 +421,14 @@ function persistCustomImages() {
   return storageQueue;
 }
 
+// 예전 방식으로 합성된 블록을 슬롯 바탕 위에 다시 얹는다(계획 D2-a).
+// 한 장이 실패해도 나머지는 올린다. 실패한 블록은 예전 모습으로 남을 뿐 게임은 돌아간다.
+async function upgradeStoredBlocks() {
+  customImages = await Promise.all(
+    customImages.map((value, slot) => (value ? upgradeBlockImage(value, slot).catch(() => value) : null)),
+  );
+}
+
 function renderSlots() {
   const list = $('#slotList');
   const fragment = document.createDocumentFragment();
@@ -403,7 +440,7 @@ function renderSlots() {
     const image = new Image(); image.src = blockImage(index); image.alt = '';
     const label = document.createElement('span'); label.textContent = block.name;
     button.append(image, label);
-    button.addEventListener('click', () => { editorSlot = index; renderSlots(); });
+    button.addEventListener('click', () => { editorSlot = index; renderSlots(); renderCrop(); });
     fragment.append(button);
   });
   list.replaceChildren(fragment);
@@ -426,7 +463,7 @@ function renderFrames() {
 }
 
 function renderCrop() {
-  renderCustomBlock(cropContext, cropCanvas.width, { frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, cropGuide: true });
+  renderCustomBlock(cropContext, cropCanvas.width, { frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, cropGuide: true, slot: editorSlot });
 }
 
 function setEditorImage(image) {
@@ -516,7 +553,7 @@ for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
 
 $('#applyBlockButton').addEventListener('click', async () => {
   if (!editorImage) return;
-  customImages[editorSlot] = customBlockDataUrl({ frame: editorFrame, holeScale, image: editorImage, transform: editorTransform });
+  customImages[editorSlot] = customBlockDataUrl({ frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, slot: editorSlot });
   renderSlots(); renderBoard();
   try {
     await persistCustomImages();
@@ -534,7 +571,7 @@ $('#restoreSlotButton').addEventListener('click', async () => {
 
 $('#exportPresetButton').addEventListener('click', () => {
   if (!customImages.some(Boolean)) { toast('먼저 사진 블록을 하나 이상 만들어주세요'); return; }
-  const blob = new Blob([JSON.stringify({ app: 'sonjupang', version: 1, savedAt: new Date().toISOString(), blocks: customImages })], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'sonjupang', version: BLOCK_FORMAT_VERSION, savedAt: new Date().toISOString(), blocks: customImages })], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob); link.download = `sonjupang-preset-${new Date().toISOString().slice(0, 10)}.json`;
   link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
@@ -545,7 +582,9 @@ $('#presetInput').addEventListener('change', async (event) => {
   try {
     const file = event.target.files[0];
     if (!file || file.size > 30_000_000) throw new Error('too large');
-    customImages = safePresetData(JSON.parse(await file.text()));
+    const preset = safePresetData(JSON.parse(await file.text()));
+    customImages = preset.blocks;
+    if (preset.version < BLOCK_FORMAT_VERSION) await upgradeStoredBlocks();
     renderSlots(); renderBoard();
     await persistCustomImages();
     toast('프리셋을 불러오고 자동 저장했어요');
@@ -578,7 +617,12 @@ async function initializeApp() {
   renderCrop();
   startGame();
   try {
-    customImages = await loadCustomBlocks();
+    const stored = await loadCustomBlocks();
+    customImages = stored.blocks;
+    if (stored.version < BLOCK_FORMAT_VERSION && customImages.some(Boolean)) {
+      await upgradeStoredBlocks();
+      await persistCustomImages().catch(() => {});
+    }
     const status = storageKind() === 'android'
       ? '꾸민 블록은 앱 내부에 자동 저장되며 앱 삭제 또는 전체 초기화 전까지 유지됩니다.'
       : '꾸민 블록은 이 브라우저에 자동 저장되며 사이트 데이터 삭제 또는 전체 초기화 전까지 유지됩니다.';

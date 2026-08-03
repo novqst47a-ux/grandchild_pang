@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
+import { BLOCK_FORMAT_VERSION } from './custom-blocks.js';
 
 const BLOCK_COUNT = 5;
 const META_KEY = 'custom-blocks-v1';
@@ -55,10 +56,12 @@ async function requestWebPersistence() {
 
 async function loadNativeBlocks() {
   const { value } = await Preferences.get({ key: META_KEY });
-  if (!value) return emptyBlocks();
+  if (!value) return { version: BLOCK_FORMAT_VERSION, blocks: emptyBlocks() };
   const metadata = JSON.parse(value);
-  if (metadata.version !== 1 || !Array.isArray(metadata.blocks)) return emptyBlocks();
-  return Promise.all(Array.from({ length: BLOCK_COUNT }, async (_, index) => {
+  if (!Array.isArray(metadata.blocks) || (metadata.version !== 1 && metadata.version !== BLOCK_FORMAT_VERSION)) {
+    return { version: BLOCK_FORMAT_VERSION, blocks: emptyBlocks() };
+  }
+  const blocks = await Promise.all(Array.from({ length: BLOCK_COUNT }, async (_, index) => {
     const entry = metadata.blocks[index];
     if (!entry?.file || !entry?.mime) return null;
     try {
@@ -66,11 +69,12 @@ async function loadNativeBlocks() {
       return typeof result.data === 'string' ? `data:${entry.mime};base64,${result.data}` : null;
     } catch { return null; }
   }));
+  return { version: metadata.version, blocks };
 }
 
 async function saveNativeBlocks(blocks) {
   try { await Filesystem.mkdir({ path: NATIVE_DIRECTORY, directory: Directory.Data, recursive: true }); } catch { /* already exists */ }
-  const metadata = { version: 1, blocks: [] };
+  const metadata = { version: BLOCK_FORMAT_VERSION, blocks: [] };
   for (let index = 0; index < BLOCK_COUNT; index += 1) {
     const value = blocks[index];
     const file = `block-${index}.img`;
@@ -90,16 +94,23 @@ export function storageKind() {
   return Capacitor.isNativePlatform() ? 'android' : 'web';
 }
 
+// 합성 방식이 바뀌면(계획 D2) 저장된 이미지도 다시 얹어야 한다. 어느 방식으로 만든
+// 이미지인지 구분하려고 형식 버전을 함께 둔다. 웹의 v1은 배열을 그대로 저장했으므로
+// 배열이면 v1, 객체면 그 안의 version을 쓴다.
 export async function loadCustomBlocks() {
-  if (Capacitor.isNativePlatform()) return normalizeBlocks(await loadNativeBlocks());
+  if (Capacitor.isNativePlatform()) {
+    const { version, blocks } = await loadNativeBlocks();
+    return { version, blocks: normalizeBlocks(blocks) };
+  }
   const stored = await webTransaction('readonly', (store) => store.get(WEB_KEY));
-  return normalizeBlocks(stored);
+  if (Array.isArray(stored)) return { version: 1, blocks: normalizeBlocks(stored) };
+  return { version: stored?.version ?? BLOCK_FORMAT_VERSION, blocks: normalizeBlocks(stored?.blocks) };
 }
 
 export async function saveCustomBlocks(blocks) {
   const normalized = normalizeBlocks(blocks);
   if (Capacitor.isNativePlatform()) return saveNativeBlocks(normalized);
-  await webTransaction('readwrite', (store) => store.put(normalized, WEB_KEY));
+  await webTransaction('readwrite', (store) => store.put({ version: BLOCK_FORMAT_VERSION, blocks: normalized }, WEB_KEY));
   await requestWebPersistence();
 }
 
