@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "test": "node --test",
-    "check": "node --check src/game-core.js && node --check src/custom-blocks.js && node --check src/storage.js && node --check src/app.js && node --check scripts/build.mjs && node --check scripts/verify-build.mjs && node --check scripts/build-android.mjs",
+    "check": "node --check src/game-core.js && node --check src/custom-blocks.js && node --check src/storage.js && node --check src/app.js && node --check scripts/build.mjs && node --check scripts/verify-build.mjs && node --check scripts/build-android.mjs && node --check scripts/check-contrast.mjs && node scripts/check-contrast.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "build": "vite build && node scripts/build.mjs && node scripts/verify-build.mjs",
     "android:sync": "npm run build && cap sync android",
