@@ -29,6 +29,7 @@ import {
   samplePhoto,
   upgradeBlockImage,
 } from './custom-blocks.js';
+import { setupInstallPrompt } from './install-prompt.js';
 import { DEFAULT_PRAISE_SETTINGS, normalizePraiseSettings } from './praise-settings.js';
 import { playPraiseEffect, stopPraiseEffects, updatePraiseSources } from './praise-fx.js';
 import {
@@ -942,6 +943,10 @@ const isLocalHost = ['localhost', '127.0.0.1', '[::1]', ''].includes(location.ho
 if (!isLocalHost && 'serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
+
+// 설치 팝업. beforeinstallprompt는 페이지가 뜨자마자 올 수 있으므로 게임 준비를 기다리지 않고
+// 여기서 바로 귀를 열어 둔다. 개발 서버에서는 서비스 워커를 등록하지 않아 이벤트도 오지 않는다.
+setupInstallPrompt({ toast });
 
 async function loadStoredBlocks() {
   try {
