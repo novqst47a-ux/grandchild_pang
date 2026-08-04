@@ -31,7 +31,7 @@ import {
 } from './custom-blocks.js';
 import { setupInstallPrompt } from './install-prompt.js';
 import { DEFAULT_PRAISE_SETTINGS, normalizePraiseSettings } from './praise-settings.js';
-import { playPraiseEffect, stopPraiseEffects, updatePraiseSources } from './praise-fx.js';
+import { playPraiseEffect, praiseHeroImage, stopPraiseEffects, updatePraiseSources } from './praise-fx.js';
 import {
   clearCustomBlocks,
   isStoragePersisted,
@@ -63,6 +63,7 @@ const boardOverlay = $('#boardOverlay');
 const finalScore = $('#finalScore');
 const celebrationPopup = $('#celebrationPopup');
 const celebrationImage = $('#celebrationImage');
+const celebrationHero = $('#celebrationHero');
 const CELEBRATIONS = [
   { src: 'assets/celebrations/good.png', alt: '좋아요!' },
   { src: 'assets/celebrations/cool.png', alt: '멋져요!' },
@@ -165,9 +166,27 @@ function hideCelebration() {
   clearTimeout(celebrationTimer);
   celebrationPopup.hidden = true;
   celebrationImage.classList.remove('play');
+  celebrationHero.hidden = true;
+  celebrationHero.classList.remove('play');
+  celebrationHero.replaceChildren(); // 사진을 화면 밖에 남겨 두지 않는다
 }
 
-function showCelebration(combo) {
+// 큰 사진 한 장. 사진 블록을 맞췄을 때만, 그 블록의 사진으로 뜬다.
+// 캔버스를 그대로 얹는다. 데이터 URL로 바꾸면 맞추는 순간 512×512 인코딩이 끼어들어 한 박자 늦는다.
+function paintCelebrationHero(slot) {
+  const image = slot === null ? null : praiseHeroImage(slot, praiseSettings);
+  celebrationHero.hidden = !image;
+  if (!image) {
+    celebrationHero.replaceChildren();
+    return;
+  }
+  celebrationHero.replaceChildren(image);
+  celebrationHero.classList.remove('play');
+  void celebrationHero.offsetWidth;
+  celebrationHero.classList.add('play');
+}
+
+function showCelebration(combo, heroSlot) {
   const item = CELEBRATIONS[Math.min(combo, 3) - 1];
   clearTimeout(celebrationTimer);
   celebrationImage.src = item.src;
@@ -176,6 +195,7 @@ function showCelebration(combo) {
   celebrationImage.classList.remove('play');
   void celebrationImage.offsetWidth;
   celebrationImage.classList.add('play');
+  paintCelebrationHero(heroSlot);
   celebrationTimer = setTimeout(hideCelebration, 860);
 }
 
@@ -194,8 +214,7 @@ function matchedPhotoSlot(matches) {
 // 파티클은 축하 그림 둘레에 흩어진다(기획 §2.1 — 메시지 위 또는 주위).
 // 그림이 차지한 자리를 그대로 넘겨 그 바깥에 자리를 잡게 한다. 그림이 아직 그려지기
 // 전이라 크기를 못 재면 판 전체를 기준으로 삼는다.
-function praiseMatched(matches, combo) {
-  const slot = matchedPhotoSlot(matches);
+function praiseMatched(slot, combo) {
   if (slot === null) return;
   const image = celebrationImage.getBoundingClientRect();
   const area = image.width ? image : celebrationPopup.getBoundingClientRect();
@@ -348,8 +367,10 @@ async function processMatches() {
     transientClasses = new Map([...matches].map((key) => [key, 'matched']));
     const title = combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
     setMessage(title, `+${gained.toLocaleString('ko-KR')}점`);
-    showCelebration(combo);
-    praiseMatched(matches, combo);
+    // 큰 그림과 파티클은 같은 블록을 가리켜야 한다. 자리를 한 번만 골라 둘에 함께 넘긴다.
+    const photoSlot = matchedPhotoSlot(matches);
+    showCelebration(combo, photoSlot);
+    praiseMatched(photoSlot, combo);
     playMatchSound(combo);
     navigator.vibrate?.(combo > 1 ? [35, 35, 55] : 35);
     renderBoard();
@@ -425,8 +446,15 @@ function beginDrag(event) {
   ignoreClickUntil = performance.now() + 450;
 }
 
+// 누름 표시(1.5배 확대)를 판 전체에서 지운다. 누른 블록만 골라 지우면 손가락 두 개를
+// 번갈아 짚었을 때 앞의 블록이 커진 채로 굳는다. 스물다섯 칸을 훑는 편이 안전하다.
+function clearPressed() {
+  for (const tile of boardElement.querySelectorAll('.tile.pressed')) tile.classList.remove('pressed');
+}
+
 function finishDrag() {
   swipeStart?.tile?.classList.remove('drag-source');
+  clearPressed();
   dragGhost?.remove();
   dragGhost = null;
 }
@@ -436,6 +464,8 @@ boardElement.addEventListener('pointerdown', (event) => {
   if (!tile || busy || gameOver) return;
   const bounds = tile.getBoundingClientRect();
   swipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY, row: Number(tile.dataset.row), col: Number(tile.dataset.col), tile, size: bounds.width, dragging: false };
+  clearPressed();
+  tile.classList.add('pressed');
   boardElement.setPointerCapture?.(event.pointerId);
 });
 boardElement.addEventListener('pointermove', (event) => {
@@ -464,6 +494,16 @@ boardElement.addEventListener('pointerup', (event) => {
   }
 });
 boardElement.addEventListener('pointercancel', () => { finishDrag(); swipeStart = null; });
+// 판 밖에서 손을 떼거나(끌다가 화면 가장자리로 나감) 다른 손가락의 pointerup이 먼저 와서
+// 위 핸들러가 그냥 지나간 경우에도 확대는 풀려야 한다.
+for (const eventName of ['pointerup', 'pointercancel']) addEventListener(eventName, clearPressed);
+
+// 이미지·버튼을 꾹 누르면 브라우저가 "이미지 복사 / 다운로드 / 공유" 메뉴를 띄운다(스크린샷 3).
+// 게임판 위에서는 쓸 일이 없고, 어르신은 이 창을 닫는 법을 몰라 게임이 멈춘다.
+// 판과 끌기 중인 그림에서만 막는다. 모달의 사진·글자에서는 평소대로 둔다.
+addEventListener('contextmenu', (event) => {
+  if (event.target.closest?.('.board, .drag-ghost, .celebration-popup')) event.preventDefault();
+});
 
 // 확인 다이얼로그. 네이티브 window.confirm은 문구·색·포커스를 제어할 수 없고
 // WebView에서 시스템 폰트로 튀어나와 톤이 깨진다(DESIGN §9). 두 곳이 이 하나를 나눠 쓴다.

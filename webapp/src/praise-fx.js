@@ -10,6 +10,7 @@ import { FIREWORK_COUNT, mainParticleCount } from './praise-settings.js';
 
 const TAU = Math.PI * 2;
 const HEART_SIZE = 320;   // 하트 마스크 캔버스 한 변
+const HERO_SIZE = 512;    // 메시지 위에 크게 뜨는 한 장. 원본 사진과 같은 크기라 더 키워도 얻는 게 없다
 const BLOCK_SIZE = 256;   // 블록 모양 파티클 한 변
 const POOL_LIMIT = 96;
 
@@ -71,8 +72,7 @@ function drawCover(target, image, size) {
 
 // 기획 §2.1 — 하트 마스킹은 블록 썸네일이 아니라 프레임 없는 원본 사진에 적용한다.
 // 그 사진(customPhotoDataUrl)은 512로 저장되므로 여기서 줄여도 블록(256)보다 촘촘하다.
-function buildHeartCanvas(photo, lip) {
-  const size = HEART_SIZE;
+function buildHeartCanvas(photo, lip, size = HEART_SIZE) {
   const target = document.createElement('canvas');
   target.width = target.height = size;
   const paint = target.getContext('2d');
@@ -215,7 +215,13 @@ export async function updatePraiseSources(images, photos, stickers) {
     } catch { /* 파티클만 빠진다 */ }
     const photoUrl = photos?.[slot];
     if (photoUrl) {
-      try { entry.heart = buildHeartCanvas(await loadImage(photoUrl), colors[1]); } catch { /* 하트만 빠진다 */ }
+      try {
+        const photo = await loadImage(photoUrl);
+        entry.heart = buildHeartCanvas(photo, colors[1]);
+        // 큰 그림은 파티클(약 120px)과 달리 화면의 3분의 1을 차지한다. 같은 캔버스를 늘려 쓰면
+        // 흐려지므로 사진 원본 크기 그대로 한 장 더 만든다.
+        entry.hero = buildHeartCanvas(photo, colors[1], HERO_SIZE);
+      } catch { /* 하트만 빠진다 */ }
     }
     if (entry.block || entry.heart) built.set(slot, entry);
   }));
@@ -223,6 +229,21 @@ export async function updatePraiseSources(images, photos, stickers) {
   if (token !== sourceToken) return;
   sources.clear();
   for (const [slot, entry] of built) sources.set(slot, entry);
+}
+
+// 하트는 원본 사진이 있어야 만들 수 있다. v2까지 저장된 블록에는 사진이 없어 블록 모양으로 대신한다.
+// large는 크게 띄우는 한 장인지다. 하트만 큰 판이 따로 있고, 블록 모양은 한 벌뿐이다.
+function pickImage(source, type, large) {
+  const heart = (large && source.hero) || source.heart;
+  return type === 'HEART_CROP' ? heart || source.block : source.block || heart;
+}
+
+// 기획 §2.1 보강 — 축하 메시지 위에 뜨는 큰 그림 한 장. 파티클과 달리 캔버스가 아니라
+// DOM에 얹히므로(app.js), 화면에 그릴 캔버스를 그대로 넘긴다. 없으면 null.
+export function praiseHeroImage(slot, settings) {
+  if (!settings.praiseEffectEnabled) return null;
+  const source = sources.get(slot);
+  return source ? pickImage(source, settings.praiseParticleType, true) || null : null;
 }
 
 function acquire() {
@@ -264,10 +285,7 @@ export function playPraiseEffect({ slot, combo, area, settings }) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const source = sources.get(slot);
   if (!source) return;
-  // 하트는 원본 사진이 있어야 만들 수 있다. v2까지 저장된 블록에는 사진이 없어 블록 모양으로 대신한다.
-  const image = settings.praiseParticleType === 'HEART_CROP'
-    ? source.heart || source.block
-    : source.block || source.heart;
+  const image = pickImage(source, settings.praiseParticleType, false);
   if (!image) return;
 
   ensureCanvas();
