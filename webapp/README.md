@@ -1,7 +1,11 @@
-# 손주팡 웹앱 MVP
+# 손주팡 웹앱
 
 고령자와 저시력자를 위한 5×5 매치3 웹앱입니다. 블록의 원본 렌더 크기는 최대 120px이며,
 좁은 안드로이드 화면에서는 5개가 잘리지 않도록 같은 비율로 축소됩니다.
+
+**빌드 단계가 없습니다.** `index.html`이 `src/app.js`를 ES 모듈로 직접 불러오고 브라우저가
+상대 경로 import를 따라갑니다. 이 폴더의 파일이 곧 배포본입니다. npm 의존성은 하나도 없고,
+node는 테스트·대비 검사·개발 서버에만 쓰이는 개발 도구입니다.
 
 ## 포함 기능
 
@@ -10,100 +14,90 @@
 - 연쇄 단계별 축하 이미지: 좋아요·멋져요·대단해요
 - 즉시 매치와 진행 불가능한 초기 보드를 방지하는 보드 생성
 - 사진 불러오기, EXIF 방향 보정, 드래그·핀치 크롭, 6종 프레임
-- 커스텀 블록 자동 저장과 전체 초기화
-- JSON 파일 프리셋 저장·불러오기
+- 꾸민 블록 자동 저장과 전체 초기화
+- JSON 파일로 꾸민 모습 저장·불러오기
 - PWA 매니페스트와 오프라인 서비스 워커
-- 파티클 옵션을 위한 비활성 UI 자리
 
-커스텀 블록은 서버로 전송하지 않습니다. 웹에서는 IndexedDB, 안드로이드 앱에서는 앱 내부 파일에
-자동 저장합니다. 게임 점수와 진행 보드는 저장하지 않습니다.
+꾸민 블록은 서버로 전송하지 않고 브라우저 IndexedDB에 저장합니다. 게임 점수와 진행 보드는
+저장하지 않습니다.
+
+### 사진을 오래 남기려면 홈 화면에 설치해야 합니다
+
+브라우저 탭으로만 열어 두면 저장 공간이 부족할 때 IndexedDB가 축출될 수 있습니다. 홈 화면에
+설치하면 `navigator.storage.persist()`가 자동 승인되어 축출 대상에서 빠집니다. 설정 화면의
+저장 안내 문구가 현재 어느 상태인지 알려 줍니다.
+
+| 문구 | 뜻 |
+|---|---|
+| 사진은 이 기기에만 저장돼요. 지우기 전까지 그대로 있어요 | 영구 저장 승인됨(설치형) |
+| 사진은 이 브라우저에만 저장돼요. 인터넷으로 보내지 않아요 | 미승인. 축출될 수 있음 |
 
 ## 실행과 확인
 
-PowerShell 실행 정책은 변경하지 않습니다. 프로젝트 루트에서 `.cmd` 실행 파일을 직접 호출하세요.
+PowerShell 실행 정책은 변경하지 않습니다. `.cmd` 실행 파일을 직접 호출하세요.
 
 ```powershell
 cd .\webapp
 npm.cmd run dev
 ```
 
-화면에 표시되는 `http://127.0.0.1:4173` 주소를 브라우저에서 엽니다. `npm.ps1` 실행이 제한된
-환경에서도 `npm.cmd`는 기존 보안 정책을 그대로 유지하며 실행됩니다.
+`http://localhost:5173/`을 브라우저에서 엽니다. 개발 서버(`scripts/serve.mjs`)는 node 내장
+모듈만 쓰므로 `npm install` 없이 그대로 돕니다. 포트를 바꾸려면 `PORT` 환경 변수를 씁니다.
 
-테스트와 빌드도 같은 방식으로 실행합니다.
+테스트와 검사도 같은 방식으로 실행합니다.
 
 ```powershell
 npm.cmd test
 npm.cmd run check
-npm.cmd run build
 ```
 
-`npm.cmd run build` 결과는 `dist/`에 생성됩니다. 정적 HTTPS 호스팅에 배포하면 안드로이드에서 홈 화면에
-추가해 설치형으로 사용할 수 있습니다.
+- `npm test` — `tests/` 전체 (게임 로직 + 디자인 토큰·문구 규칙)
+- `npm run check` — 문법 검사 + 대비 검사. 기본과 고대비(`prefers-contrast: more`) 두 벌을 각각 찍습니다
 
-## 안드로이드 테스트 APK
+### 실기기에서 열기
 
-Capacitor Android 프로젝트는 `android/`에 준비되어 있습니다. 패키지 ID는
-`com.sonjupang.game`, 최소 지원 버전은 Android 7(API 24)입니다.
+개발 서버는 모든 인터페이스에 바인딩하므로, 같은 Wi-Fi의 휴대폰에서 서버가 출력한
+`http://<PC의 IP>:5173/` 주소로 바로 열 수 있습니다. 사진 넣기는 `<input type="file" capture>`라
+http로도 동작합니다.
 
-처음 한 번 Android Studio의 **SDK Manager**에서 다음 항목을 설치하고 라이선스에 동의해야 합니다.
+다만 **서비스 워커와 홈 화면 설치는 보안 컨텍스트를 요구하므로 http LAN 주소에서는 확인할 수
+없습니다.** 그 둘은 아래 배포 주소(HTTPS)에서 확인하세요.
 
-- Android SDK Platform 36
-- Android SDK Build-Tools 36.0.0
-- JDK 21 이상(Android Studio 내장 JDK 사용 가능)
+## 배포 (GitHub Pages)
 
-그다음 PowerShell 정책을 변경하지 않고 아래처럼 빌드합니다.
+`main`에 push하면 [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)이 테스트와
+대비 검사를 돌린 뒤 `webapp/` 폴더를 그대로 Pages에 올립니다. 빌드 단계는 없습니다.
 
-```powershell
-cd .\webapp
-npm.cmd run android:sync
-npm.cmd run android:apk
-```
+처음 한 번은 저장소 설정에서 **Settings → Pages → Source를 `GitHub Actions`로** 지정해야 합니다.
 
-`android:apk` 명령은 `JAVA_HOME`의 JDK를 먼저 확인하고, Java 21 미만이면 Android Studio의 내장
-JDK 21을 자동으로 찾아 사용합니다. 둘 다 없으면 JDK 21 설치 안내와 함께 빌드를 중단합니다.
+꾸민 사진은 기기 밖으로 나가지 않으므로 공개 주소로 서빙해도 사진이 노출되지 않습니다.
+호스팅되는 것은 게임 코드와 기본 블록 이미지뿐입니다.
 
-웹 빌드 직후 `scripts/verify-build.mjs`가 `index.html`의 진입 스크립트와 참조 파일을 자동으로
-검증합니다. 검증에 실패하면 Android 동기화 전에 빌드가 중단됩니다. 과거 APK 정적 화면 오류의 원인과
-수동 점검 절차는 [Android APK 정적 화면 오류와 재발 방지](../docs/android-apk-build-incident.md)를 참고하세요.
+### 배포할 때마다 확인할 것
 
-완성된 테스트 APK 위치:
+`sw.js`의 `CACHE` 이름을 올리는 것을 권장합니다. 서비스 워커가 stale-while-revalidate라
+올리지 않아도 다음 접속에서 스스로 새 버전을 받지만, 이름을 올리면 한 번에 갈아끼워져
+모듈 여러 개가 서로 다른 버전으로 섞이는 경우를 피할 수 있습니다.
+
+## 폴더
 
 ```text
-C:\Users\net1\Documents\Dev\grandchild_pang\android-build\app\outputs\apk\debug\app-debug.apk
+webapp/
+├─ index.html          # 진입점. src/app.js를 모듈로 직접 로드
+├─ styles.css          # 디자인 토큰과 전체 스타일
+├─ sw.js               # 서비스 워커 (stale-while-revalidate)
+├─ manifest.webmanifest
+├─ src/
+│  ├─ app.js           # UI·입력·게임 진행
+│  ├─ game-core.js     # 순수 매치3 로직 (테스트 대상)
+│  ├─ custom-blocks.js # 사진 합성·프레임·기본 블록 렌더
+│  └─ storage.js       # IndexedDB 저장
+├─ scripts/
+│  ├─ serve.mjs        # 개발용 정적 서버 (의존성 없음)
+│  ├─ check-contrast.mjs
+│  └─ generate-icons.mjs
+├─ tests/
+└─ assets/celebrations/
 ```
 
-### OneDrive 밖에서 Android 빌드하기
-
-웹 소스와 Android 프로젝트 소스는 기존 OneDrive 저장소에 유지합니다. Gradle이 생성하는 모듈별
-`build/` 디렉터리와 프로젝트 캐시만 다음 경로를 사용합니다.
-
-```text
-C:\Users\net1\Documents\Dev\grandchild_pang\
-├─ android-build\          # app 및 플러그인의 Gradle 빌드 산출물
-└─ gradle-project-cache\   # Gradle 프로젝트 캐시
-```
-
-`npm.cmd run android:apk`를 사용하면 위 경로가 자동 적용됩니다. Android Studio에서 빌드해도
-`android/build.gradle` 설정에 의해 `android-build/` 산출물은 같은 외부 경로를 사용합니다. 단,
-Android Studio 자체의 프로젝트 캐시는 별도로 생성될 수 있습니다.
-
-다른 경로가 필요하면 빌드 전에 `SONJUPANG_ANDROID_BUILD_ROOT` 환경 변수를 지정합니다.
-
-```powershell
-$env:SONJUPANG_ANDROID_BUILD_ROOT = 'D:\Dev\grandchild_pang'
-npm.cmd run android:apk
-```
-
-환경 변수는 Android 빌드 루트만 변경하며 `webapp`, `dist`, `android` 소스 위치는 변경하지 않습니다.
-
-Android Studio에서 기기 또는 에뮬레이터로 실행하려면 다음 명령을 사용합니다.
-
-```powershell
-npm.cmd run android:open
-```
-
-안드로이드에서는 합성된 사진 블록을 앱 내부 저장소에 두고 블록 슬롯 정보만 Preferences에 저장합니다.
-외부 저장소 권한은 사용하지 않습니다. 가족 사진이 Google Drive 백업이나 기기 간 전송에 포함되지 않도록
-Android 11 이하와 Android 12 이상의 백업 제외 규칙을 모두 적용했습니다. 앱 삭제 또는 설정 화면의
-`꾸민 블록 전체 초기화`를 실행하면 저장 데이터가 제거됩니다.
+디자인 스펙은 [DESIGN.md](../docs/DESIGN.md)를 따릅니다.

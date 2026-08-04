@@ -26,7 +26,7 @@ import {
   samplePhoto,
   upgradeBlockImage,
 } from './custom-blocks.js';
-import { clearCustomBlocks, loadCustomBlocks, saveCustomBlocks, storageKind } from './storage.js';
+import { clearCustomBlocks, isStoragePersisted, loadCustomBlocks, saveCustomBlocks } from './storage.js';
 
 const $ = (selector) => document.querySelector(selector);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, matchMedia('(prefers-reduced-motion: reduce)').matches ? 20 : ms));
@@ -793,9 +793,11 @@ $('#resetCustomBlocksButton').addEventListener('click', async () => {
 
 settingsDialog.addEventListener('close', () => $('#openSettingsButton').focus());
 
-// 개발 서버에서는 등록하지 않는다. sw.js는 cache-first라 styles.css는 물론
-// @vite/client와 의존성 모듈까지 캐시해, 코드를 고쳐도 화면이 바뀌지 않는다.
-if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol !== 'file:') {
+// 개발 서버에서는 등록하지 않는다. sw.js가 src/*.js까지 캐시하므로, 등록해 두면
+// 코드를 고쳐도 새로고침한 화면이 바뀌지 않는다. 번들러를 걷어내면서 빌드 시점 플래그
+// (import.meta.env.PROD)가 없어졌으므로 호스트 이름으로 판별한다.
+const isLocalHost = ['localhost', '127.0.0.1', '[::1]', ''].includes(location.hostname);
+if (!isLocalHost && 'serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
@@ -807,8 +809,10 @@ async function loadStoredBlocks() {
       await upgradeStoredBlocks();
       await persistCustomImages().catch(() => {});
     }
-    $('#storageStatus').textContent = storageKind() === 'android'
-      ? '사진은 이 기기에만 저장돼요. 앱을 지우기 전까지 그대로 있어요'
+    // 홈 화면에 설치하면 저장 공간이 부족해도 사진이 지워지지 않는다(storage.js 참고).
+    // 설치 전에는 축출될 수 있으므로 같은 말을 하면 안 된다.
+    $('#storageStatus').textContent = await isStoragePersisted()
+      ? '사진은 이 기기에만 저장돼요. 지우기 전까지 그대로 있어요'
       : '사진은 이 브라우저에만 저장돼요. 인터넷으로 보내지 않아요';
   } catch {
     $('#storageStatus').textContent = '자동 저장이 안 돼요. 꾸민 모습 저장하기를 써 보세요';

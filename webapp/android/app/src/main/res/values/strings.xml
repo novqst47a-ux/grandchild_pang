@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">손주팡</string>
-    <string name="title_activity_main">손주팡</string>
-    <string name="package_name">com.sonjupang.game</string>
-    <string name="custom_url_scheme">com.sonjupang.game</string>
-</resources>

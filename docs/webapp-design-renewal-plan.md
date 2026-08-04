@@ -250,13 +250,18 @@
 
 - [x] ~~`sw.js`의 `CACHE` bump와 `ASSETS`에 `./styles.css` 추가~~ → **Phase 1에서 처리** (§2.2-1)
 - [x] ~~스타일·문구를 더 바꿨다면 `CACHE`를 올릴 것~~ → Phase 3에서 v6, Phase 4에서 **v7**
-- [ ] `npm.cmd test` / `run check` / `run build` 전부 통과
-- [ ] `npm.cmd run android:apk` 재빌드 후 실기기 설치 확인
-- [ ] **D2-a 확인:** 리뉴얼 **전** 버전으로 블록을 2~3개 꾸며 둔 뒤 업데이트해, 마이그레이션이 실제로 동작하는지 본다
+> **배포 방식 변경(Phase 5 진행 중 결정).** Android APK를 접고 PWA + GitHub Pages로 전환했다.
+> Capacitor·vite·Gradle을 모두 제거했고 빌드 단계가 없어졌다. 근거와 이력은 인수인계 문서 §1 참고.
+> APK는 실제 배포 전이었으므로 이관할 사용자 데이터가 없었다.
+
+- [x] `npm.cmd test` (15/15) / `run check` 통과 — `run build`는 빌드 단계가 없어져 삭제됨
+- [x] PWA 전환: Capacitor 4종·vite 제거, `manifest` 상대 경로 수정, `sw.js` stale-while-revalidate + `v9`
+- [x] `webapp/README.md`의 용어 갱신 (프리셋 → 꾸민 모습) + 포트 5173 오류 수정 + Android 절 제거
+- [ ] **D2-a 확인:** 리뉴얼 **전** 버전으로 블록을 2~3개 꾸며 둔 뒤 현재 버전을 같은 origin에서 열어, 마이그레이션이 실제로 동작하는지 본다
 - [ ] 수동 점검: 360 / 390 / 768px, TalkBack, `prefers-reduced-motion`, 한 손 조작
       (~~브라우저 확대 200%~~ — D5로 줌 차단 유지, 대신 **OS 글꼴 크기 "매우 크게"** 상태에서 A8이 동작하는지 확인)
+- [ ] **배포 후 확인(HTTPS 필요):** 서비스 워커 등록, 홈 화면 설치, 설치 후 저장 안내 문구 변화, 오프라인 실행
 - [ ] 리뉴얼 후 스크린샷 → `docs/design-review/after/`
-- [ ] `webapp/README.md`의 용어 갱신 (프리셋 → 꾸민 모습)
 - [ ] `docs/DESIGN.md`에 **"구현 보정" 절 추가** — 반영할 항목 5건
   1. §1.3 블록 팔레트를 D1 매핑표로 교체 + "립은 보드 바닥 대비 3:1 이상" 조건 명시
   2. §5.3 게임판 외곽선을 `--board-edge: #96754b`로 (§5.1)

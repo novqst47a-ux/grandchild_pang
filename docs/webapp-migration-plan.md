@@ -2,6 +2,13 @@
 
 작성일: 2026-08-03
 
+> **후속 결정(2026-08-04).** 이 문서의 "웹 네이티브로 다시 만든다"는 결론은 그대로 유효하고
+> 실제로 그렇게 구현됐다. 다만 **배포 형태는 Android 앱 패키징(Capacitor)이 아니라 PWA +
+> GitHub Pages로 확정했다.** 사용자 10명 미만짜리 앱에 Capacitor·vite·Gradle 툴체인을
+> 유지하는 비용이 과했고, 수정할 때마다 새 APK를 기기마다 다시 설치시켜야 했기 때문이다.
+> 아래 본문에서 Capacitor·APK를 전제한 서술은 이 결정으로 대체됐다.
+> 근거는 [webapp-design-renewal-handoff.md](./webapp-design-renewal-handoff.md) §1 참고.
+
 ## 1. 배경
 
 현재 `practice/sonjupang/`에 Godot 4.7로 매치3 퍼즐을 연습 구현 중.

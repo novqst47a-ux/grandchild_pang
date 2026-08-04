@@ -1,5 +1,13 @@
 # Android APK 정적 화면 오류와 재발 방지
 
+> **(이력 문서) 2026-08-04에 Android 배포를 접었다.** Capacitor와 vite를 걷어내고 PWA +
+> GitHub Pages로 전환하면서 이 문서가 다루는 빌드 파이프라인 자체가 없어졌다. 여기 적힌
+> 재발 방지 절차(`verify-build.mjs` 등)도 대상과 함께 삭제됐다.
+>
+> 이 장애는 **번들 산출물을 원본으로 덮어쓰는 후처리 단계**가 있었기 때문에 생겼고,
+> 빌드 단계를 없애면서 그 유형이 구조적으로 사라졌다. 기록으로만 남긴다.
+> 전환 근거는 [webapp-design-renewal-handoff.md](./webapp-design-renewal-handoff.md) §1 참고.
+
 ## 문서 목적
 
 2026-08-03에 해결한 Android APK 실행 오류의 원인과 영구적인 재발 방지 절차를 기록한다.

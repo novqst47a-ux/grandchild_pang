@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<full-backup-content>
-    <!-- 가족 사진이 포함된 커스텀 블록은 클라우드 백업에서 제외합니다. -->
-    <exclude domain="file" path="custom-blocks/" />
-    <exclude domain="sharedpref" path="CapacitorStorage.xml" />
-</full-backup-content>

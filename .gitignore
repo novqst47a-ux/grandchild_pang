@@ -11,11 +11,12 @@ desktop.ini
 .vscode/
 .idea/
 
-# 웹앱 빌드 결과물
-/webapp/dist/
+# 웹앱은 번들러를 쓰지 않으므로 빌드 산출물이 없다. webapp/ 자체가 배포본이다.
+# 의존성도 없지만, 실수로 npm install을 돌렸을 때를 대비해 남겨 둔다.
 /webapp/node_modules/
-/webapp/.npm-cache/
-/webapp/.gradle-user-home/
+
+# 축하 배지 원본(PSD). 결과 PNG만 저장소에 둔다.
+/img_original/
 
 # Claude Code 로컬 설정 (실행 설정 launch.json은 공유한다)
 /.claude/settings.local.json
