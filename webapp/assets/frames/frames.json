@@ -52,5 +52,32 @@
     "holeCenter": [128, 130],
     "outline": "#891b3d",
     "outlineWidth": 8
+  },
+  {
+    "id": "ribbon",
+    "name": "리본",
+    "artwork": "./ribbon/artwork.svg",
+    "mask": "./ribbon/mask.svg",
+    "holeCenter": [128, 130],
+    "outline": "#991b99",
+    "outlineWidth": 8
+  },
+  {
+    "id": "circle",
+    "name": "동그라미",
+    "artwork": "./circle/artwork.svg",
+    "mask": "./circle/mask.svg",
+    "holeCenter": [128, 128],
+    "outline": "#0d6e5c",
+    "outlineWidth": 8
+  },
+  {
+    "id": "square",
+    "name": "네모",
+    "artwork": "./square/artwork.svg",
+    "mask": "./square/mask.svg",
+    "holeCenter": [128, 128],
+    "outline": "#14508f",
+    "outlineWidth": 8
   }
 ]

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- 사진 구멍. 지름은 프레임 바깥(r=112)보다 작아 테두리 띠가 남는다.
+       실제 크기는 holeCenter를 중심으로 holeScale(기본 .82)만큼 줄여 쓴다. -->
+  <path id="photo-hole" fill="#fff" d="M23 128A105 105 0 1 0 233 128A105 105 0 1 0 23 128Z"/>
+</svg>
