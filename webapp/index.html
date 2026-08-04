@@ -32,8 +32,8 @@
         <strong id="scoreValue">0</strong>
       </div>
       <div class="message-card" id="messageCard">
-        <strong id="messageTitle">같은 블록 3개를 모아보세요!</strong>
-        <span id="messageText">블록을 누른 뒤 옆 블록을 누르세요.</span>
+        <strong id="messageTitle">같은 그림 3개를 모아 보세요</strong>
+        <span id="messageText">블록을 누르고, 옆 블록을 눌러 보세요</span>
       </div>
       <div class="score-card moves-card" id="movesCard">
         <span class="score-label">남은 이동</span>
@@ -89,7 +89,7 @@
 
     <div class="settings-body" id="settingsBody">
       <section class="step-panel" data-step="1" aria-label="바꿀 블록 고르기">
-        <p class="step-lead">바꾸고 싶은 블록을 눌러 보세요.</p>
+        <p class="step-lead">바꾸고 싶은 블록을 눌러 보세요</p>
         <div class="choice-grid" id="slotList" role="radiogroup" aria-label="바꿀 블록 자리"></div>
         <button class="flat-button wide" id="restoreSlotButton" type="button" hidden>그림 블록으로 되돌리기</button>
 
@@ -97,24 +97,24 @@
           <summary>더 보기</summary>
           <div class="more-body">
             <h3 class="more-title">꾸민 모습 보관</h3>
-            <p class="more-note">파일로 내보내 두면 다른 기기에서도 같은 모습으로 꾸밀 수 있어요.</p>
+            <p class="more-note">파일로 내보내 두면 다른 기기에서도 같은 모습으로 꾸밀 수 있어요</p>
             <div class="button-row">
               <button class="flat-button" id="exportPresetButton" type="button">꾸민 모습 저장</button>
               <button class="flat-button" id="importPresetButton" type="button">꾸민 모습 불러오기</button>
               <input class="sr-only" id="presetInput" type="file" accept="application/json,.json">
             </div>
             <button class="flat-button danger wide" id="resetCustomBlocksButton" type="button">모두 처음으로 되돌리기</button>
-            <p class="privacy-note" id="storageStatus">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요.</p>
+            <p class="privacy-note" id="storageStatus">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요</p>
 
             <h3 class="more-title">칭찬 효과</h3>
-            <p class="more-note">나중에 더 재미있는 효과를 넣을 자리예요.</p>
+            <p class="more-note">나중에 더 재미있는 효과를 넣을 자리예요</p>
             <button class="disabled-preview" type="button" disabled>효과 설정 — 준비 중</button>
           </div>
         </details>
       </section>
 
       <section class="step-panel" data-step="2" aria-label="사진 고르기">
-        <p class="step-lead">카메라로 찍거나, 기기에 있는 사진을 골라 보세요.</p>
+        <p class="step-lead">카메라로 찍거나, 기기에 있는 사진을 골라 보세요</p>
         <div class="button-row">
           <button class="flat-button" id="cameraButton" type="button"><span aria-hidden="true">📷</span> 카메라</button>
           <button class="flat-button" id="galleryButton" type="button"><span aria-hidden="true">▣</span> 사진 선택</button>
@@ -127,11 +127,11 @@
           <canvas id="photoPreviewCanvas" width="256" height="256" aria-hidden="true" hidden></canvas>
           <p class="photo-empty" id="photoEmpty">아직 사진이 없어요. 카메라로 찍어 볼까요?</p>
         </div>
-        <p class="privacy-note">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요.</p>
+        <p class="privacy-note">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요</p>
       </section>
 
       <section class="step-panel" data-step="3" aria-label="사진 맞추기">
-        <p class="step-lead">모양을 고르고, 사진 위치를 맞춰 보세요.</p>
+        <p class="step-lead">모양을 고르고, 사진 위치를 맞춰 보세요</p>
         <div class="choice-grid" id="frameList" role="radiogroup" aria-label="사진 모양"></div>
 
         <div class="crop-stage">
@@ -164,7 +164,7 @@
         <div class="done-card">
           <img id="donePreview" alt="" width="120" height="120">
           <p class="done-title" id="doneMessage">블록이 바뀌었어요</p>
-          <p class="step-lead">게임판에서 바로 볼 수 있어요.</p>
+          <p class="step-lead">게임판에서 바로 볼 수 있어요</p>
         </div>
         <button class="flat-button wide" id="continueDecorateButton" type="button">계속 꾸미기</button>
       </section>
@@ -181,7 +181,7 @@
     <div class="confirm-content">
       <span aria-hidden="true" class="confirm-icon" id="confirmIcon">↻</span>
       <h2 id="confirmTitle">새 게임을 시작할까요?</h2>
-      <p id="confirmText">지금 점수는 사라지고 처음부터 시작해요.</p>
+      <p id="confirmText">지금 점수는 사라지고 처음부터 시작해요</p>
       <div class="confirm-actions">
         <button id="confirmCancelButton" class="flat-button" type="button">계속하기</button>
         <button id="confirmOkButton" class="step-button" type="button">새 게임</button>

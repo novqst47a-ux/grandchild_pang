@@ -134,6 +134,11 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
   box-shadow: var(--shadow), inset 0 3px rgba(255, 255, 255, .7);
   touch-action: none;
 }
+/* §9 연쇄 처리 중. cursor: wait는 터치 기기에서 아무것도 알려주지 않는다.
+   판 전체를 못 누르게 막고 밝기로 "지금은 기다리는 중"을 보인다. 문구는 띄우지 않는다. */
+.board.busy { pointer-events: none; filter: brightness(.96); }
+/* §9 첫 진입 — 스피너 금지. 판 모양 그대로 25칸을 깔아 둔다. */
+.tile-skeleton { width: var(--tile-size); height: var(--tile-size); background: var(--line); border-radius: clamp(12px, 2.4vw, 24px); }
 
 .tile {
   position: relative;
@@ -147,7 +152,7 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
   background: transparent;
   box-shadow: 0 6px 0 var(--tile-lip, var(--line-strong));
   cursor: pointer;
-  transition: transform var(--m-press) var(--e-standard), opacity 190ms ease, filter 180ms ease;
+  transition: transform var(--m-press) var(--e-standard), opacity var(--m-fast) var(--e-standard), filter var(--m-fast) var(--e-standard);
 }
 /* 누르면 립이 사라지며 내려앉는다. 전역 button:active(3px)보다 우선해야 한다. */
 .tile:active:not(:disabled) { transform: translateY(6px); box-shadow: none; }
@@ -158,11 +163,11 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
 .tile-badge { position: absolute; z-index: 4; top: 6%; right: 6%; width: 22px; height: 22px; padding: 3px; background: rgba(255, 255, 255, .92); border-radius: 50%; pointer-events: none; }
 .tile[data-selected="true"] { transform: translateY(-6px) scale(1.05); outline: 4px solid var(--focus); outline-offset: 0; z-index: 2; }
 .tile[data-selected="true"]::before { content: "선택"; position: absolute; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 4px 8px; color: #fff; background: var(--focus); border: 2px solid white; border-radius: 20px; font-size: var(--t-caption); font-weight: 900; }
-.tile.hint { animation: hint-pulse 700ms ease-in-out 2; z-index: 2; }
-.tile.matched { animation: praise-away 280ms ease-in forwards; }
-.tile.spawned { animation: drop-in 330ms cubic-bezier(.2,.8,.3,1.25); }
-.tile.invalid { animation: no-shake 300ms ease; }
-.tile:disabled { cursor: wait; }
+/* §8 — bounce는 게임 영역에서만. 힌트·낙하가 그 용도다. */
+.tile.hint { animation: hint-pulse 700ms var(--e-bounce) 2; z-index: 2; }
+.tile.matched { animation: praise-away 280ms var(--e-exit) forwards; }
+.tile.spawned { animation: drop-in var(--m-slow) var(--e-bounce); }
+.tile.invalid { animation: no-shake 300ms var(--e-standard); }
 .tile.drag-source { opacity: .28; filter: grayscale(.3); }
 
 .drag-ghost {
@@ -176,7 +181,7 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
   object-fit: cover;
   pointer-events: none;
   transform: translate(-50%, -72%) scale(1.08);
-  animation: drag-lift 130ms ease-out;
+  animation: drag-lift var(--m-fast) var(--e-enter);
   will-change: left, top;
 }
 
@@ -323,8 +328,11 @@ dialog { max-width: none; }
 .confirm-actions { gap: 10px; }
 .confirm-actions button { flex: 1; width: auto; }
 
-.toast { position: fixed; z-index: 100; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); width: max-content; max-width: calc(100% - 28px); padding: 12px 19px; color: white; background: rgba(43, 38, 33, .93); border: 2px solid white; border-radius: var(--r-full); font-size: var(--t-body); font-weight: 800; opacity: 0; transform: translate(-50%, 20px); transition: .2s ease; pointer-events: none; }
+.toast { position: fixed; z-index: 100; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); width: max-content; max-width: calc(100% - 28px); padding: 12px 19px; color: white; background: rgba(43, 38, 33, .93); border: 2px solid white; border-radius: var(--r-full); font-size: var(--t-body); font-weight: 800; opacity: 0; transform: translate(-50%, 20px); transition: var(--m-base) var(--e-standard); pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* §9 — 잘 됐는지 안 됐는지를 글자만이 아니라 색으로도 알린다. 흰 글자 대비는 5.3:1 / 5.5:1. */
+.toast.success { background: var(--success); }
+.toast.danger { background: var(--danger); }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
 
 /* §5.4 힌트 — 통통 튀는 펄스 2회 + 아래에서 위로 살짝 점프 */
@@ -374,4 +382,10 @@ dialog { max-width: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  /* §8 — 모션을 줄여도 "눌렸다"는 피드백까지 없애면 안 된다.
+     위 규칙은 전환 시간만 줄일 뿐 :active의 이동(translateY)은 그대로 남으므로,
+     여기서 이동을 걷어내고 대신 색으로 알린다. */
+  .wide-button:active:not(:disabled), .icon-button:active:not(:disabled) { transform: none; background: var(--surface-mute); }
+  .primary-button:active:not(:disabled) { transform: none; background: var(--carrot-lip); }
+  .tile:active:not(:disabled) { transform: none; filter: brightness(.88); }
 }

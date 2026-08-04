@@ -33,6 +33,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, matchMedia('(
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LOW_MOVES = 3; // 이 아래로 남으면 남은 이동 카드를 경고 상태로 (DESIGN §5.2)
+const TOAST_MS = 2500; // DESIGN §9
+const DROP_MS = 400; // .tile.spawned의 --m-slow와 맞춘다. 짧으면 낙하 중에 DOM이 갈린다
+const STORAGE_WAIT_MS = 2500; // 저장소를 이만큼 기다렸다가, 늦으면 기본 블록으로 먼저 시작한다
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const boardElement = $('#board');
 const scoreValue = $('#scoreValue');
@@ -73,12 +77,16 @@ function setMessage(title, detail = '') {
   liveStatus.textContent = detail ? `${title} ${detail}` : title;
 }
 
-function toast(text) {
+// tone은 '' / 'success' / 'danger'. DESIGN §9 — 잘 됐는지 안 됐는지를 색으로도 알린다.
+// 1800ms는 어르신이 한 문장을 읽기에 짧다. §9의 2.5초를 쓴다.
+function toast(text, tone = '') {
   const element = $('#toast');
   element.textContent = text;
+  element.classList.remove('success', 'danger');
+  if (tone) element.classList.add(tone);
   element.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => element.classList.remove('show'), 1800);
+  toastTimer = setTimeout(() => element.classList.remove('show'), TOAST_MS);
 }
 
 function updateStats() {
@@ -124,6 +132,20 @@ function showCelebration(combo) {
   celebrationTimer = setTimeout(hideCelebration, 860);
 }
 
+// DESIGN §9 로딩 — 스피너 대신 판 모양 그대로 25칸. 어디에 무엇이 생길지 미리 보인다.
+function renderSkeleton() {
+  const fragment = document.createDocumentFragment();
+  for (let index = 0; index < BOARD_SIZE * BOARD_SIZE; index += 1) {
+    const cell = document.createElement('div');
+    cell.className = 'tile-skeleton';
+    cell.setAttribute('aria-hidden', 'true');
+    fragment.append(cell);
+  }
+  boardElement.replaceChildren(fragment);
+  boardElement.setAttribute('aria-busy', 'true');
+  setMessage('잠깐만요', '블록을 준비하고 있어요');
+}
+
 function renderBoard() {
   const focusKey = document.activeElement?.dataset?.key;
   const fragment = document.createDocumentFragment();
@@ -162,6 +184,8 @@ function renderBoard() {
   }
   boardElement.replaceChildren(fragment);
   boardElement.setAttribute('aria-busy', String(busy));
+  // §9 연쇄 처리 중 — 판 전체를 못 누르게 하고 살짝 어둡게. 문구는 띄우지 않는다.
+  boardElement.classList.toggle('busy', busy);
   if (focusKey) boardElement.querySelector(`[data-key="${focusKey}"]`)?.focus({ preventScroll: true });
 }
 
@@ -179,20 +203,20 @@ async function chooseTile(position) {
   hintKeys.clear();
   if (!selected) {
     selected = position;
-    setMessage(`${DEFAULT_BLOCKS[board[position.row][position.col]].name} 블록 선택`, '바꿀 옆 블록을 눌러주세요.');
+    setMessage(`${DEFAULT_BLOCKS[board[position.row][position.col]].name} 블록을 골랐어요`, '옆에 있는 블록을 눌러 보세요');
     playTone(330, .04);
     renderBoard();
     return;
   }
   if (selected.row === position.row && selected.col === position.col) {
     selected = null;
-    setMessage('선택을 취소했어요', '옮길 블록을 다시 눌러주세요.');
+    setMessage('다시 고를 수 있어요', '옮길 블록을 눌러 보세요');
     renderBoard();
     return;
   }
   if (!areAdjacent(selected, position)) {
     selected = position;
-    setMessage('새 블록을 선택했어요', '바로 옆 블록과 바꿀 수 있어요.');
+    setMessage('이 블록을 골랐어요', '바로 옆 블록하고만 바꿀 수 있어요');
     renderBoard();
     return;
   }
@@ -211,8 +235,9 @@ async function trySwap(from, to) {
   if (!matches.size) {
     board = original;
     transientClasses = new Map([[keyOf(from.row, from.col), 'invalid'], [keyOf(to.row, to.col), 'invalid']]);
-    setMessage('이 자리에서는 모이지 않아요', '다른 옆 블록과 바꿔보세요. 이동 횟수는 그대로예요.');
+    setMessage('여기는 안 움직여요', '다른 곳을 눌러 보세요. 이동 횟수는 그대로예요');
     playTone(145, .09);
+    navigator.vibrate?.(20); // 소리를 끈 어르신에게도 피드백이 남도록(계획 A6)
     renderBoard();
     await sleep(320);
     busy = false;
@@ -228,12 +253,12 @@ async function trySwap(from, to) {
     endGame();
   } else {
     if (!findValidMoves(board).length) {
-      setMessage('새로 섞어드릴게요', '맞출 수 있는 자리를 만드는 중이에요.');
+      setMessage('새로 섞어 드릴게요', '맞출 수 있는 자리를 만들고 있어요');
       await sleep(450);
       board = reshuffle(board);
       transientClasses = new Map(board.flatMap((_, row) => board[row].map((__, col) => [keyOf(row, col), 'spawned'])));
       renderBoard();
-      await sleep(350);
+      await sleep(DROP_MS);
     }
     busy = false;
     transientClasses.clear();
@@ -251,7 +276,7 @@ async function processMatches() {
     score += gained;
     updateStats();
     transientClasses = new Map([...matches].map((key) => [key, 'matched']));
-    const title = combo > 1 ? `${combo}연속! 정말 잘했어요!` : `${matches.size}개를 모았어요!`;
+    const title = combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
     setMessage(title, `+${gained.toLocaleString('ko-KR')}점`);
     showCelebration(combo);
     playMatchSound(combo);
@@ -262,7 +287,7 @@ async function processMatches() {
     board = collapsed.board;
     transientClasses = new Map([...collapsed.spawned].map((key) => [key, 'spawned']));
     renderBoard();
-    await sleep(350);
+    await sleep(DROP_MS);
   }
 }
 
@@ -278,7 +303,7 @@ function startGame() {
   boardOverlay.hidden = true;
   hideCelebration();
   updateStats();
-  setMessage('같은 블록 3개를 모아보세요!', '블록을 누른 뒤 옆 블록을 누르세요.');
+  setMessage('같은 그림 3개를 모아 보세요', '블록을 누르고, 옆 블록을 눌러 보세요');
   renderBoard();
 }
 
@@ -288,7 +313,7 @@ function endGame() {
   updateStats(); // 경고 상태를 해제한다. 게임이 끝난 뒤까지 빨갛게 둘 이유가 없다
   finalScore.textContent = `${score.toLocaleString('ko-KR')}점`;
   boardOverlay.hidden = false;
-  setMessage('게임을 마쳤어요!', `최종 점수는 ${score.toLocaleString('ko-KR')}점이에요.`);
+  setMessage('오늘은 여기까지! 참 잘했어요', `${score.toLocaleString('ko-KR')}점이에요`);
   playMatchSound(3);
   renderBoard();
   $('#restartButton').focus();
@@ -299,7 +324,7 @@ function showHint() {
   const move = findValidMoves(board)[0];
   if (!move) return;
   hintKeys = new Set(move.map(({ row, col }) => keyOf(row, col)));
-  setMessage('반짝이는 두 블록을 바꿔보세요', '힌트는 이동 횟수를 사용하지 않아요.');
+  setMessage('여기를 옮겨 보세요', '힌트는 이동 횟수를 쓰지 않아요');
   renderBoard();
   setTimeout(() => { hintKeys.clear(); renderBoard(); }, 1800);
 }
@@ -407,7 +432,7 @@ $('#newGameButton').addEventListener('click', async () => {
   const ok = await askConfirm({
     icon: '↻',
     title: '새 게임을 시작할까요?',
-    text: '지금 점수는 사라지고 처음부터 시작해요.',
+    text: '지금 점수는 사라지고 처음부터 시작해요',
     confirmLabel: '새 게임',
     cancelLabel: '계속하기',
   });
@@ -576,9 +601,9 @@ async function usePhotoFile(file) {
   if (!file) return;
   try {
     setEditorImage(await decodePhoto(file));
-    toast('사진을 불러왔어요');
+    toast('사진을 불러왔어요', 'success');
   } catch {
-    toast('사진을 읽지 못했어요');
+    toast('사진을 읽지 못했어요. 다른 사진으로 해볼까요?', 'danger');
   }
 }
 
@@ -593,7 +618,7 @@ async function applyToSlot() {
   goStep('done');
   try {
     await persistCustomImages();
-  } catch { toast('블록은 바꿨지만 저장하지 못했어요'); }
+  } catch { toast('블록은 바꿨지만 저장은 못 했어요', 'danger'); }
 }
 
 $('#openSettingsButton').addEventListener('click', () => {
@@ -690,17 +715,17 @@ $('#restoreSlotButton').addEventListener('click', async () => {
   renderSlots(); renderBoard(); renderStep();
   try {
     await persistCustomImages();
-    toast('그림 블록으로 되돌렸어요');
-  } catch { toast('블록은 되돌렸지만 저장하지 못했어요'); }
+    toast('그림 블록으로 되돌렸어요', 'success');
+  } catch { toast('블록은 되돌렸지만 저장은 못 했어요', 'danger'); }
 });
 
 $('#exportPresetButton').addEventListener('click', () => {
-  if (!customImages.some(Boolean)) { toast('먼저 사진 블록을 하나 이상 만들어주세요'); return; }
+  if (!customImages.some(Boolean)) { toast('먼저 사진 블록을 하나 만들어 보세요'); return; }
   const blob = new Blob([JSON.stringify({ app: 'sonjupang', version: BLOCK_FORMAT_VERSION, savedAt: new Date().toISOString(), blocks: customImages })], { type: 'application/json' });
   const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob); link.download = `sonjupang-preset-${new Date().toISOString().slice(0, 10)}.json`;
+  link.href = URL.createObjectURL(blob); link.download = `sonjupang-blocks-${new Date().toISOString().slice(0, 10)}.json`;
   link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  toast('프리셋 파일을 저장했어요');
+  toast('꾸민 모습을 파일로 저장했어요', 'success');
 });
 $('#importPresetButton').addEventListener('click', () => $('#presetInput').click());
 $('#presetInput').addEventListener('change', async (event) => {
@@ -712,8 +737,8 @@ $('#presetInput').addEventListener('change', async (event) => {
     if (preset.version < BLOCK_FORMAT_VERSION) await upgradeStoredBlocks();
     renderSlots(); renderBoard(); renderStep();
     await persistCustomImages();
-    toast('프리셋을 불러오고 자동 저장했어요');
-  } catch { toast('올바른 프리셋 파일이 아니에요'); }
+    toast('꾸민 모습을 불러왔어요', 'success');
+  } catch { toast('이 파일은 열 수 없어요. 다른 파일로 해볼까요?', 'danger'); }
   event.target.value = '';
 });
 
@@ -722,7 +747,7 @@ $('#resetCustomBlocksButton').addEventListener('click', async () => {
   const ok = await askConfirm({
     icon: '↺',
     title: '모두 처음으로 되돌릴까요?',
-    text: '꾸며 둔 사진 블록이 모두 그림 블록으로 돌아가요.',
+    text: '꾸며 둔 사진 블록이 모두 그림 블록으로 돌아가요',
     confirmLabel: '되돌리기',
     cancelLabel: '그만두기',
   });
@@ -732,8 +757,8 @@ $('#resetCustomBlocksButton').addEventListener('click', async () => {
     await clearCustomBlocks();
     customImages = Array(DEFAULT_BLOCKS.length).fill(null);
     renderSlots(); renderBoard(); renderStep();
-    toast('모두 그림 블록으로 되돌렸어요');
-  } catch { toast('저장된 블록을 되돌리지 못했어요'); }
+    toast('모두 그림 블록으로 되돌렸어요', 'success');
+  } catch { toast('저장된 블록을 되돌리지 못했어요', 'danger'); }
 });
 
 settingsDialog.addEventListener('close', () => $('#openSettingsButton').focus());
@@ -744,10 +769,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol !=
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
-async function initializeApp() {
-  renderFrames();
-  renderCrop();
-  startGame();
+async function loadStoredBlocks() {
   try {
     const stored = await loadCustomBlocks();
     customImages = stored.blocks;
@@ -755,15 +777,30 @@ async function initializeApp() {
       await upgradeStoredBlocks();
       await persistCustomImages().catch(() => {});
     }
-    const status = storageKind() === 'android'
-      ? '꾸민 블록은 앱 내부에 자동 저장되며 앱 삭제 또는 전체 초기화 전까지 유지됩니다.'
-      : '꾸민 블록은 이 브라우저에 자동 저장되며 사이트 데이터 삭제 또는 전체 초기화 전까지 유지됩니다.';
-    $('#storageStatus').textContent = status;
+    $('#storageStatus').textContent = storageKind() === 'android'
+      ? '사진은 이 기기에만 저장돼요. 앱을 지우기 전까지 그대로 있어요'
+      : '사진은 이 브라우저에만 저장돼요. 인터넷으로 보내지 않아요';
   } catch {
-    $('#storageStatus').textContent = '저장소를 열지 못했습니다. 프리셋 파일 저장 기능을 이용해주세요.';
+    $('#storageStatus').textContent = '자동 저장이 안 돼요. 꾸민 모습 저장하기를 써 보세요';
   }
+}
+
+async function initializeApp() {
+  renderSkeleton();
+  renderFrames();
+  renderCrop();
+  // startGame()을 먼저 부르면 그림 블록으로 한 판을 그린 뒤 사진 블록으로 다시 그려
+  // 첫 화면이 한 번 깜빡인다. 저장소를 읽고 나서 시작해 그 깜빡임을 없앤다(DESIGN §9).
+  let started = false;
+  const ready = loadStoredBlocks().then(() => {
+    // 아래 race가 타임아웃으로 끝난 뒤에 사진이 도착한 경우에만 다시 그린다.
+    if (started) { renderSlots(); renderBoard(); }
+  });
+  // 저장소가 늦거나 응답하지 않아도 게임은 시작돼야 한다. 스켈레톤에 갇히면 아무것도 못 한다.
+  await Promise.race([ready, wait(STORAGE_WAIT_MS)]);
+  started = true;
   renderSlots();
-  renderBoard();
+  startGame();
 }
 
 initializeApp();
