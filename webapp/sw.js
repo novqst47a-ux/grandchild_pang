@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v10'; // v10: 편집 가능한 SVG 사진 프레임
+const CACHE = 'sonjupang-mvp-v11'; // v11: 사진 방향 맞추기 + 칭찬 파티클
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',
@@ -21,6 +21,8 @@ const ASSETS = [
   './src/game-core.js',
   './src/custom-blocks.js',
   './src/storage.js',
+  './src/praise-settings.js',
+  './src/praise-fx.js',
   './assets/celebrations/good.png',
   './assets/celebrations/cool.png',
   './assets/celebrations/amazing.png',

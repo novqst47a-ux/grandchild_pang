@@ -17,6 +17,8 @@ import {
   DEFAULT_BLOCKS,
   FRAMES,
   customBlockDataUrl,
+  customPhotoDataUrl,
+  customStickerDataUrl,
   decodePhoto,
   defaultBlockDataUrl,
   drawFramePreview,
@@ -27,7 +29,16 @@ import {
   samplePhoto,
   upgradeBlockImage,
 } from './custom-blocks.js';
-import { clearCustomBlocks, isStoragePersisted, loadCustomBlocks, saveCustomBlocks } from './storage.js';
+import { DEFAULT_PRAISE_SETTINGS, normalizePraiseSettings } from './praise-settings.js';
+import { playPraiseEffect, stopPraiseEffects, updatePraiseSources } from './praise-fx.js';
+import {
+  clearCustomBlocks,
+  isStoragePersisted,
+  loadCustomBlocks,
+  loadPraiseSettings,
+  saveCustomBlocks,
+  savePraiseSettings,
+} from './storage.js';
 
 const $ = (selector) => document.querySelector(selector);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, matchMedia('(prefers-reduced-motion: reduce)').matches ? 20 : ms));
@@ -59,6 +70,10 @@ const CELEBRATIONS = [
 
 const defaultImages = DEFAULT_BLOCKS.map((_, index) => defaultBlockDataUrl(index));
 let customImages = Array(DEFAULT_BLOCKS.length).fill(null);
+// 블록과 짝이 되는 칭찬 파티클 재료. 사진은 하트 마스킹에, 모양은 블록 모양 파티클에 쓴다.
+let customPhotos = Array(DEFAULT_BLOCKS.length).fill(null);
+let customStickers = Array(DEFAULT_BLOCKS.length).fill(null);
+let praiseSettings = { ...DEFAULT_PRAISE_SETTINGS };
 let board = makeBoard();
 let selected = null;
 let busy = false;
@@ -161,6 +176,29 @@ function showCelebration(combo) {
   void celebrationImage.offsetWidth;
   celebrationImage.classList.add('play');
   celebrationTimer = setTimeout(hideCelebration, 860);
+}
+
+// 기획 §1 — 칭찬 파티클은 사진 블록을 맞췄을 때만 뜬다. 그림 블록은 축하 그림까지가 전부다.
+// 한 번에 여러 종류가 함께 맞아도 파티클은 사진 블록 하나만 고른다. 두 종류가 겹쳐 뜨면
+// 무엇을 맞춰서 나온 효과인지 알아보기 어렵다.
+function matchedPhotoSlot(matches) {
+  for (const key of matches) {
+    const [row, col] = key.split(':').map(Number);
+    const type = board[row][col];
+    if (customImages[type]) return type;
+  }
+  return null;
+}
+
+// 파티클은 축하 그림 둘레에 흩어진다(기획 §2.1 — 메시지 위 또는 주위).
+// 그림이 차지한 자리를 그대로 넘겨 그 바깥에 자리를 잡게 한다. 그림이 아직 그려지기
+// 전이라 크기를 못 재면 판 전체를 기준으로 삼는다.
+function praiseMatched(matches, combo) {
+  const slot = matchedPhotoSlot(matches);
+  if (slot === null) return;
+  const image = celebrationImage.getBoundingClientRect();
+  const area = image.width ? image : celebrationPopup.getBoundingClientRect();
+  playPraiseEffect({ slot, combo, area, settings: praiseSettings });
 }
 
 // DESIGN §9 로딩 — 스피너 대신 판 모양 그대로 25칸. 어디에 무엇이 생길지 미리 보인다.
@@ -310,6 +348,7 @@ async function processMatches() {
     const title = combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
     setMessage(title, `+${gained.toLocaleString('ko-KR')}점`);
     showCelebration(combo);
+    praiseMatched(matches, combo);
     playMatchSound(combo);
     navigator.vibrate?.(combo > 1 ? [35, 35, 55] : 35);
     renderBoard();
@@ -333,6 +372,7 @@ function startGame() {
   transientClasses.clear();
   boardOverlay.hidden = true;
   hideCelebration();
+  stopPraiseEffects();
   updateStats();
   setMessage('같은 그림 3개를 모아 보세요', '블록을 누르고, 옆 블록을 눌러 보세요');
   renderBoard();
@@ -520,8 +560,11 @@ let sampleSeed = 0;
 let storageQueue = Promise.resolve();
 
 function persistCustomImages() {
-  const snapshot = [...customImages];
-  storageQueue = storageQueue.catch(() => {}).then(() => saveCustomBlocks(snapshot));
+  const blocks = [...customImages];
+  const photos = [...customPhotos];
+  const stickers = [...customStickers];
+  updatePraiseSources(blocks, photos, stickers);
+  storageQueue = storageQueue.catch(() => {}).then(() => saveCustomBlocks(blocks, photos, stickers));
   return storageQueue;
 }
 
@@ -617,7 +660,7 @@ function renderStep() {
   $('#restoreSlotButton').hidden = !(editorStep === 1 && customImages[editorSlot]);
 
   if (editorStep === 2) renderPhotoPreview();
-  if (editorStep === 3) renderCrop();
+  if (editorStep === 3) { renderOrientation(); renderCrop(); }
 }
 
 function goStep(step) {
@@ -632,8 +675,22 @@ function setEditorImage(image) {
   editorTransform = initialTransform(image);
   $('#zoomRange').value = '100';
   $('#zoomOutput').textContent = '100%';
+  renderOrientation();
   renderCrop();
   renderStep();
+}
+
+function renderOrientation() {
+  $('#flipPhotoButton').setAttribute('aria-pressed', String(Boolean(editorTransform.flip)));
+}
+
+// 뒤집힌 사진은 화면에 거울처럼 보인다. 각도를 그대로 더하면 "오른쪽으로"를 눌렀을 때
+// 왼쪽으로 도는 것처럼 보이므로, 뒤집혀 있을 때는 부호를 뒤집어 화면과 버튼을 맞춘다.
+function turnPhoto(degrees) {
+  if (!editorImage) return;
+  const step = editorTransform.flip ? -degrees : degrees;
+  editorTransform.rotation = (((editorTransform.rotation || 0) + step) % 360 + 360) % 360;
+  renderCrop();
 }
 
 async function usePhotoFile(file) {
@@ -649,7 +706,12 @@ async function usePhotoFile(file) {
 async function applyToSlot() {
   if (!editorImage || !editorFrame) return;
   const slot = editorSlot;
-  customImages[slot] = customBlockDataUrl({ frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, slot });
+  const shaped = { frame: editorFrame, holeScale, image: editorImage, transform: editorTransform };
+  customImages[slot] = customBlockDataUrl({ ...shaped, slot });
+  // 블록과 함께 칭찬 파티클 재료 두 장도 남긴다.
+  // 사진은 프레임 없이(하트 마스킹용), 모양은 바탕 없이(블록 모양 파티클용).
+  customPhotos[slot] = customPhotoDataUrl({ image: editorImage, transform: editorTransform });
+  customStickers[slot] = customStickerDataUrl(shaped);
   renderSlots();
   renderBoard();
   $('#donePreview').src = customImages[slot];
@@ -682,11 +744,21 @@ $('#galleryButton').addEventListener('click', () => $('#galleryInput').click());
 $('#cameraInput').addEventListener('change', (event) => { usePhotoFile(event.target.files[0]); event.target.value = ''; });
 $('#galleryInput').addEventListener('change', (event) => { usePhotoFile(event.target.files[0]); event.target.value = ''; });
 $('#sampleButton').addEventListener('click', () => setEditorImage(samplePhoto(sampleSeed++)));
+// 가운데로 다시는 위치와 크기만 되돌린다. 방향까지 되돌리면 옆으로 누운 사진을
+// 애써 세워 둔 것이 한 번에 사라진다.
 $('#resetCropButton').addEventListener('click', () => {
   if (!editorImage) return;
-  editorTransform = initialTransform(editorImage);
+  editorTransform = initialTransform(editorImage, editorTransform);
   $('#zoomRange').value = '100';
   $('#zoomOutput').textContent = '100%';
+  renderCrop();
+});
+$('#turnLeftButton').addEventListener('click', () => turnPhoto(-90));
+$('#turnRightButton').addEventListener('click', () => turnPhoto(90));
+$('#flipPhotoButton').addEventListener('click', () => {
+  if (!editorImage) return;
+  editorTransform.flip = !editorTransform.flip;
+  renderOrientation();
   renderCrop();
 });
 
@@ -753,6 +825,8 @@ for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
 
 $('#restoreSlotButton').addEventListener('click', async () => {
   customImages[editorSlot] = null;
+  customPhotos[editorSlot] = null;
+  customStickers[editorSlot] = null;
   renderSlots(); renderBoard(); renderStep();
   try {
     await persistCustomImages();
@@ -762,7 +836,7 @@ $('#restoreSlotButton').addEventListener('click', async () => {
 
 $('#exportPresetButton').addEventListener('click', () => {
   if (!customImages.some(Boolean)) { toast('먼저 사진 블록을 하나 만들어 보세요'); return; }
-  const blob = new Blob([JSON.stringify({ app: 'sonjupang', version: BLOCK_FORMAT_VERSION, savedAt: new Date().toISOString(), blocks: customImages })], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'sonjupang', version: BLOCK_FORMAT_VERSION, savedAt: new Date().toISOString(), blocks: customImages, photos: customPhotos, stickers: customStickers })], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob); link.download = `sonjupang-blocks-${new Date().toISOString().slice(0, 10)}.json`;
   link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
@@ -775,7 +849,11 @@ $('#presetInput').addEventListener('change', async (event) => {
     if (!file || file.size > 30_000_000) throw new Error('too large');
     const preset = safePresetData(JSON.parse(await file.text()));
     customImages = preset.blocks;
-    if (preset.version < BLOCK_FORMAT_VERSION) await upgradeStoredBlocks();
+    customPhotos = preset.photos;
+    customStickers = preset.stickers;
+    // v1만 합성 방식이 다르다. 그 뒤 판 올림은 파티클 재료가 함께 저장되는지의 차이라
+    // 블록 이미지를 다시 얹을 것이 없다.
+    if (preset.version < 2) await upgradeStoredBlocks();
     renderSlots(); renderBoard(); renderStep();
     await persistCustomImages();
     toast('꾸민 모습을 불러왔어요', 'success');
@@ -797,10 +875,63 @@ $('#resetCustomBlocksButton').addEventListener('click', async () => {
     await storageQueue.catch(() => {});
     await clearCustomBlocks();
     customImages = Array(DEFAULT_BLOCKS.length).fill(null);
+    customPhotos = Array(DEFAULT_BLOCKS.length).fill(null);
+    customStickers = Array(DEFAULT_BLOCKS.length).fill(null);
+    updatePraiseSources(customImages, customPhotos, customStickers);
     renderSlots(); renderBoard(); renderStep();
     toast('모두 그림 블록으로 되돌렸어요', 'success');
   } catch { toast('저장된 블록을 되돌리지 못했어요', 'danger'); }
 });
+
+// ── 칭찬 효과 설정 (기획 §3) ──
+// 값은 사진과 따로 저장한다. 저장에 실패해도 이번 판에서는 그대로 적용되고,
+// 다음에 열 때 기본값으로 돌아갈 뿐이라 게임이 막히지 않는다.
+const praiseEffectToggle = $('#praiseEffectToggle');
+const fireworksToggle = $('#fireworksToggle');
+const praiseTypeButtons = [...$('#praiseTypeGroup').querySelectorAll('[role="radio"]')];
+
+function paintToggle(button, on) {
+  button.setAttribute('aria-checked', String(on));
+  button.querySelector('.toggle-state').textContent = on ? '켜짐' : '꺼짐';
+}
+
+function renderPraiseSettings() {
+  const on = praiseSettings.praiseEffectEnabled;
+  paintToggle(praiseEffectToggle, on);
+  paintToggle(fireworksToggle, praiseSettings.fireworksEnabled);
+  // 칭찬 효과를 끄면 딸린 설정 두 개는 손댈 수 없다(기획 §4.3).
+  fireworksToggle.disabled = !on;
+  for (const button of praiseTypeButtons) {
+    button.setAttribute('aria-checked', String(button.dataset.value === praiseSettings.praiseParticleType));
+    button.disabled = !on;
+  }
+}
+
+function changePraiseSettings(patch) {
+  praiseSettings = normalizePraiseSettings({ ...praiseSettings, ...patch });
+  renderPraiseSettings();
+  savePraiseSettings(praiseSettings).catch(() => toast('효과는 바꿨지만 저장은 못 했어요', 'danger'));
+}
+
+praiseEffectToggle.addEventListener('click', () => {
+  changePraiseSettings({ praiseEffectEnabled: !praiseSettings.praiseEffectEnabled });
+  toast(praiseSettings.praiseEffectEnabled ? '칭찬 효과를 켰어요' : '칭찬 효과를 껐어요', 'success');
+});
+fireworksToggle.addEventListener('click', () => {
+  changePraiseSettings({ fireworksEnabled: !praiseSettings.fireworksEnabled });
+});
+for (const button of praiseTypeButtons) {
+  button.addEventListener('click', () => changePraiseSettings({ praiseParticleType: button.dataset.value }));
+}
+
+async function loadPraiseOptions() {
+  try {
+    praiseSettings = normalizePraiseSettings(await loadPraiseSettings());
+  } catch {
+    praiseSettings = { ...DEFAULT_PRAISE_SETTINGS };
+  }
+  renderPraiseSettings();
+}
 
 settingsDialog.addEventListener('close', () => $('#openSettingsButton').focus());
 
@@ -816,9 +947,13 @@ async function loadStoredBlocks() {
   try {
     const stored = await loadCustomBlocks();
     customImages = stored.blocks;
-    if (stored.version < BLOCK_FORMAT_VERSION && customImages.some(Boolean)) {
+    customPhotos = stored.photos;
+    customStickers = stored.stickers;
+    if (stored.version < 2 && customImages.some(Boolean)) {
       await upgradeStoredBlocks();
       await persistCustomImages().catch(() => {});
+    } else {
+      updatePraiseSources(customImages, customPhotos, customStickers);
     }
     // 홈 화면에 설치하면 저장 공간이 부족해도 사진이 지워지지 않는다(storage.js 참고).
     // 설치 전에는 축출될 수 있으므로 같은 말을 하면 안 된다.
@@ -832,6 +967,8 @@ async function loadStoredBlocks() {
 
 async function initializeApp() {
   renderSkeleton();
+  renderPraiseSettings();
+  loadPraiseOptions();
   renderFrames();
   renderCrop();
   loadFrames().then(() => {

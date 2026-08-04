@@ -45,7 +45,7 @@ function polygon(cx, cy, outer, points, inner = outer) {
   return path;
 }
 
-function heart(cx, cy, width, height = width) {
+export function heartPath(cx, cy, width, height = width) {
   const path = new Path2D();
   const hw = width / 2;
   const hh = height / 2;
@@ -256,9 +256,14 @@ function frameLayer(frame, holeScale) {
   return canvas;
 }
 
+// 뒤집기를 회전 바깥에 두면, 90도로 돌려 둔 사진에서도 "좌우 뒤집기"가 화면 기준
+// 좌우로 동작한다. 대신 뒤집힌 상태에서는 회전 방향이 거울처럼 반대로 보이므로,
+// 돌리기 버튼 쪽에서 각도 부호를 뒤집어 준다(app.js turnPhoto).
 export function drawPhoto(ctx, image, transform) {
   ctx.save();
   ctx.translate(128 + transform.x, 128 + transform.y);
+  if (transform.flip) ctx.scale(-1, 1);
+  if (transform.rotation) ctx.rotate(transform.rotation * Math.PI / 180);
   ctx.scale(transform.scale, transform.scale);
   ctx.drawImage(image, -image.width / 2, -image.height / 2);
   ctx.restore();
@@ -293,6 +298,35 @@ export function customBlockDataUrl(options) {
   canvas.width = canvas.height = 256;
   renderCustomBlock(canvas.getContext('2d'), 256, options);
   return canvas.toDataURL('image/webp', .9);
+}
+
+// 블록 모양 파티클용. slot을 빼면 바탕을 칠하지 않으므로 프레임 실루엣 밖은 비어 있다.
+// 게임판 블록은 네모지만, 파티클은 토끼·하트 같은 프레임 모양 그대로 떠오른다.
+// 투명도가 필요하므로 WebP(알파 지원)로 굽고, 못 굽는 브라우저에서는 PNG로 떨어진다.
+export function customStickerDataUrl(options) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 256;
+  renderCustomBlock(canvas.getContext('2d'), 256, { ...options, slot: null });
+  return canvas.toDataURL('image/webp', .9);
+}
+
+// 칭찬 효과의 하트 파티클은 블록 이미지가 아니라 이 사진을 마스킹해서 만든다(기획 2.1).
+// 블록(256)에는 프레임 그림과 구멍이 이미 합성돼 있어 하트로 오려도 프레임 조각이 따라온다.
+// 여기서는 프레임 없이, 사용자가 맞춘 그대로의 원본 사진을 512로 크게 남긴다.
+// 배율은 하나(uniform)라 가로세로 비율이 그대로 유지된다.
+export const PHOTO_EXPORT_SIZE = 512;
+
+export function customPhotoDataUrl({ image, transform }, size = PHOTO_EXPORT_SIZE) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.scale(size / 256, size / 256);
+  ctx.fillStyle = '#e6e1d8';
+  ctx.fillRect(0, 0, 256, 256);
+  drawPhoto(ctx, image, transform);
+  return canvas.toDataURL('image/webp', .88);
 }
 
 export function drawFramePreview(canvas, frame) {
@@ -335,7 +369,7 @@ export function defaultBlockDataUrl(type, size = 256) {
     }
     paint(ctx, circle(128, 128, 68), block.tint, lip, 9);
   } else if (block.shape === 'heart') {
-    paint(ctx, heart(128, 118, 166, 178), block.tint, lip, 10);
+    paint(ctx, heartPath(128, 118, 166, 178), block.tint, lip, 10);
   } else if (block.shape === 'star') {
     paint(ctx, polygon(128, 128, 94, 5, 43), block.tint, lip, 10);
   } else if (block.shape === 'flower') {
@@ -396,9 +430,12 @@ export function samplePhoto(seed = 0) {
   return canvas;
 }
 
-export function initialTransform(image) {
+// 90도로 돌려도 구멍을 채우는 데 필요한 배율은 max(256/w, 256/h)로 같다.
+// 두 축 중 큰 쪽을 쓰기 때문에 가로·세로가 바뀌어도 값이 그대로다.
+// 방향(rotation·flip)은 사진을 새로 고를 때만 0으로 돌아가고, 가운데로 다시에서는 유지된다.
+export function initialTransform(image, { rotation = 0, flip = false } = {}) {
   const baseScale = Math.max(256 / image.width, 256 / image.height);
-  return { x: 0, y: 0, scale: baseScale, baseScale };
+  return { x: 0, y: 0, scale: baseScale, baseScale, rotation, flip };
 }
 
 // 저장된 이미지는 합성이 끝난 결과라 원본 사진이 없다. 재합성은 불가능하지만,
@@ -420,17 +457,30 @@ export async function upgradeBlockImage(dataUrl, slot) {
   return canvas.toDataURL('image/webp', .9);
 }
 
-export const BLOCK_FORMAT_VERSION = 2;
+// v3부터 블록 이미지와 함께 프레임 없는 원본 사진(photos)을,
+// v4부터 바탕 없는 프레임 모양(stickers)을 남긴다. 둘 다 칭찬 파티클 재료다.
+// 예전 파일에는 없을 수 있으므로 praise-fx.js가 있는 것으로 대신한다.
+export const BLOCK_FORMAT_VERSION = 4;
 
-export function safePresetData(data) {
-  const version = data?.version;
-  if (!data || (version !== 1 && version !== 2) || !Array.isArray(data.blocks) || data.blocks.length !== DEFAULT_BLOCKS.length) {
-    throw new Error('손주팡에서 만든 파일이 아니에요');
-  }
-  const blocks = data.blocks.map((value) => {
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4]);
+
+function safeImageList(values, length) {
+  if (values === undefined || values === null) return Array(length).fill(null);
+  if (!Array.isArray(values) || values.length !== length) throw new Error('손주팡에서 만든 파일이 아니에요');
+  return values.map((value) => {
     if (value === null) return null;
     if (typeof value !== 'string' || !value.startsWith('data:image/') || value.length > 6_000_000) throw new Error('이미지 형식이 올바르지 않아요');
     return value;
   });
-  return { version, blocks };
+}
+
+export function safePresetData(data) {
+  const version = data?.version;
+  if (!data || !SUPPORTED_VERSIONS.has(version) || !Array.isArray(data.blocks) || data.blocks.length !== DEFAULT_BLOCKS.length) {
+    throw new Error('손주팡에서 만든 파일이 아니에요');
+  }
+  const blocks = safeImageList(data.blocks, DEFAULT_BLOCKS.length);
+  const photos = safeImageList(data.photos, DEFAULT_BLOCKS.length);
+  const stickers = safeImageList(data.stickers, DEFAULT_BLOCKS.length);
+  return { version, blocks, photos, stickers };
 }

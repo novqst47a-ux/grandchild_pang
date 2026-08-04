@@ -4,6 +4,7 @@ const BLOCK_COUNT = 5;
 const DB_NAME = 'sonjupang-local';
 const DB_STORE = 'settings';
 const WEB_KEY = 'custom-blocks';
+const EFFECT_KEY = 'praise-effects';
 
 function emptyBlocks() {
   return Array(BLOCK_COUNT).fill(null);
@@ -57,16 +58,38 @@ export async function isStoragePersisted() {
 // 배열이면 v1, 객체면 그 안의 version을 쓴다.
 export async function loadCustomBlocks() {
   const stored = await webTransaction('readonly', (store) => store.get(WEB_KEY));
-  if (Array.isArray(stored)) return { version: 1, blocks: normalizeBlocks(stored) };
-  return { version: stored?.version ?? BLOCK_FORMAT_VERSION, blocks: normalizeBlocks(stored?.blocks) };
+  if (Array.isArray(stored)) {
+    return { version: 1, blocks: normalizeBlocks(stored), photos: emptyBlocks(), stickers: emptyBlocks() };
+  }
+  return {
+    version: stored?.version ?? BLOCK_FORMAT_VERSION,
+    blocks: normalizeBlocks(stored?.blocks),
+    photos: normalizeBlocks(stored?.photos),
+    stickers: normalizeBlocks(stored?.stickers),
+  };
 }
 
-export async function saveCustomBlocks(blocks) {
-  const normalized = normalizeBlocks(blocks);
-  await webTransaction('readwrite', (store) => store.put({ version: BLOCK_FORMAT_VERSION, blocks: normalized }, WEB_KEY));
+export async function saveCustomBlocks(blocks, photos, stickers) {
+  const record = {
+    version: BLOCK_FORMAT_VERSION,
+    blocks: normalizeBlocks(blocks),
+    photos: normalizeBlocks(photos),
+    stickers: normalizeBlocks(stickers),
+  };
+  await webTransaction('readwrite', (store) => store.put(record, WEB_KEY));
   await requestWebPersistence();
 }
 
 export async function clearCustomBlocks() {
   await webTransaction('readwrite', (store) => store.delete(WEB_KEY));
+}
+
+// 칭찬 효과 설정. 사진과 달리 지워져도 잃을 것이 없으므로 기본값으로 돌아가면 그만이다.
+// 형식 검사는 praise-settings.js의 normalizePraiseSettings가 맡는다.
+export async function loadPraiseSettings() {
+  return webTransaction('readonly', (store) => store.get(EFFECT_KEY));
+}
+
+export async function savePraiseSettings(settings) {
+  await webTransaction('readwrite', (store) => store.put({ ...settings }, EFFECT_KEY));
 }
