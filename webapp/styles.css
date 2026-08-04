@@ -1,0 +1,421 @@
+/* 손주팡 디자인 토큰 — docs/DESIGN.md 기준.
+   절 번호 주석은 문서와 코드가 어긋날 때 추적 지점이 된다. */
+:root {
+  color-scheme: light;
+
+  /* §1.1 배경·면 */
+  --canvas:        #fff9f3;  /* 앱 전체 배경. 순백 아님 */
+  --surface:       #ffffff;  /* 카드, 모달 내부 면 */
+  --surface-warm:  #fff3e9;  /* 선택된 항목, 안내 박스 */
+  --line:          #eadfd2;  /* 기본 테두리 (모달 내부 — 조용한 면 위) */
+  --line-strong:   #d8c9b8;  /* 강조 테두리 */
+  --surface-mute:  #f0e9e1;  /* §6.3 비활성 주요 버튼 면, 플랫 버튼 누름 상태 */
+  /* 게임 영역 흰 버튼의 테두리·립. DESIGN §5.1/§5.5의 --line-strong은 캔버스 위에서
+     1.55:1이라 "눌리는 면"이 보이지 않는다. 계획 §5.5 보정값 — 캔버스 대비 3.42:1 */
+  --btn-edge:      #96856f;
+
+  /* §1.1 글자 */
+  --ink:           #2b2621;  /* 본문·제목. 순검정 금지 */
+  --ink-soft:      #6e6459;  /* 보조 설명 */
+  --ink-faint:     #9c9084;  /* 플레이스홀더, 장식 */
+  /* 비활성 라벨. 계획 §5.4는 --surface-warm 기준으로 #756a5e를 잡았는데,
+     §6.3의 비활성 주요 버튼 면(--surface-mute) 위에서는 4.38:1로 미달이라 한 단계 더 낮췄다.
+     두 면 모두에서 4.79:1 이상이다. */
+  --ink-disabled:  #6f6458;
+
+  /* §1.1 브랜드 */
+  --carrot:        #ff6f0f;  /* 비텍스트 전용: 아이콘, 진행바, 좌측 바 */
+  --carrot-deep:   #c2410c;  /* 흰 글자를 얹는 채움 면 */
+  --carrot-lip:    #93300a;
+  --carrot-tint:   #fff0e5;
+
+  /* §1.1 의미 */
+  --success:       #1f7a55;  --success-lip: #145c3f;  --success-tint: #e7f5ee;
+  --danger:        #c42f2f;  --danger-lip:  #98211f;  --danger-tint:  #fdeeec;
+  --reward:        #f2b705;  --reward-lip:  #b98204;
+  --focus:         #1b64da;  --focus-tint:  #e8f3ff;
+
+  /* §5.3 게임판. --board-edge는 계획 §5.1 보정값(원안 --line-strong은 1.32:1) */
+  --board:         #f6e6d3;
+  --board-edge:    #96754b;
+
+  /* §2.2 타이포 스케일. html의 % 지정과 함께 쓰여 OS 글꼴 설정을 따른다 */
+  --t-display: 2.211rem;  /* 42px */
+  --t-title:   1.579rem;  /* 30px */
+  --t-section: 1.158rem;  /* 22px */
+  --t-button:  1.053rem;  /* 20px */
+  --t-body:    1rem;      /* 19px */
+  --t-body-s:   .842rem;  /* 16px */
+  --t-caption:  .789rem;  /* 15px */
+
+  /* §3 간격·반경 */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
+  --space-4: 16px; --space-5: 24px; --space-6: 32px; --space-7: 48px;
+  --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px; --r-full: 9999px;
+
+  /* §8 모션 */
+  --m-press: 90ms; --m-fast: 150ms; --m-base: 250ms; --m-slow: 400ms; --m-celebrate: 850ms;
+  --e-enter: cubic-bezier(0, 0, .2, 1);
+  --e-exit: cubic-bezier(.4, 0, 1, 1);
+  --e-standard: cubic-bezier(.4, 0, .2, 1);
+  --e-bounce: cubic-bezier(.34, 1.56, .64, 1); /* 게임 영역 전용 */
+
+  --shadow: 0 8px 0 var(--board-edge), 0 14px 28px rgba(90, 60, 30, .16);
+  --tile-size: min(120px, calc((100vw - 40px) / 5));
+  --tile-gap: clamp(6px, 1.8vw, 10px); /* §5.3 — 오터치를 줄이려 기존보다 넓혔다 */
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* 백분율 지정이라 브라우저·OS의 글꼴 크기 설정이 그대로 반영된다.
+   px로 고정하면 사용자의 글꼴 설정이 무시된다. 핀치 줌을 막아 둔 만큼(D5)
+   이 경로가 유일한 확대 수단이므로 px로 되돌리지 말 것. */
+html { min-width: 320px; font-size: 118.75%; background: var(--line); }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 10% 10%, #fff 0 2px, transparent 3px) 0 0 / 28px 28px,
+    var(--canvas);
+  color: var(--ink);
+  font-family: "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  font-size: var(--t-body);
+  line-height: 1.45;
+  overscroll-behavior: none;
+}
+
+button, input { font: inherit; }
+button { touch-action: manipulation; }
+button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; }
+
+.app-shell {
+  width: min(100%, 760px);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(12px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+}
+
+.topbar, .scoreboard, .help-row, .dialog-header, .button-row, .slider-row, .confirm-actions {
+  display: flex;
+  align-items: center;
+}
+
+.topbar { justify-content: space-between; min-height: 62px; margin-bottom: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: clamp(1.421rem, 7vw, 2.105rem); font-weight: 900; letter-spacing: -.05em; }
+.brand-mark { display: grid; place-items: center; width: 48px; height: 48px; color: #fff; background: var(--carrot-deep); border: 4px solid var(--carrot-lip); border-radius: 15px 15px 19px; font-size: 1.316rem; transform: rotate(-3deg); }
+.top-actions { display: flex; gap: 8px; }
+.icon-button { min-width: 70px; min-height: 58px; padding: 6px 10px; color: var(--ink); background: var(--surface); border: 2px solid var(--btn-edge); border-radius: 15px; font-weight: 800; box-shadow: 0 4px 0 var(--btn-edge); }
+.icon-button > span:first-child { display: block; font-size: 1.263rem; line-height: 1; }
+.button-label { display: block; margin-top: 4px; font-size: var(--t-caption); }
+
+.scoreboard { gap: 10px; margin-bottom: 14px; }
+.score-card { flex: 0 0 112px; min-height: 86px; display: grid; place-items: center; align-content: center; padding: 7px; color: white; background: var(--carrot-deep); border: 3px solid var(--carrot-lip); border-radius: 18px; box-shadow: 0 5px 0 var(--carrot-lip); text-align: center; }
+.score-label { font-size: var(--t-body-s); font-weight: 800; }
+.score-card strong { font-size: 1.789rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.moves-card { color: var(--ink); background: var(--reward); border-color: var(--reward-lip); box-shadow: 0 5px 0 var(--reward-lip); }
+/* §5.2 — 남은 이동이 얼마 없을 때. 색만 바꾸면 지나치기 쉬워 줄어들 때마다 한 번 튄다 */
+.moves-card.low { color: #fff; background: var(--danger); border-color: var(--danger-lip); box-shadow: 0 5px 0 var(--danger-lip); }
+.moves-card.pulse { animation: warn-pop var(--m-slow) var(--e-bounce); }
+.message-card { flex: 1; min-width: 0; text-align: center; }
+.message-card strong { display: block; font-size: var(--t-body); font-weight: 800; }
+.message-card span { display: block; color: var(--ink-soft); font-size: var(--t-body-s); }
+
+.board-wrap { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; }
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, var(--tile-size));
+  grid-template-rows: repeat(5, var(--tile-size));
+  gap: var(--tile-gap);
+  padding: clamp(6px, 1.6vw, 12px);
+  background: var(--board);
+  border: 4px solid var(--board-edge);
+  border-radius: clamp(17px, 4vw, 29px);
+  box-shadow: var(--shadow), inset 0 3px rgba(255, 255, 255, .7);
+  touch-action: none;
+}
+/* §9 연쇄 처리 중. cursor: wait는 터치 기기에서 아무것도 알려주지 않는다.
+   판 전체를 못 누르게 막고 밝기로 "지금은 기다리는 중"을 보인다. 문구는 띄우지 않는다. */
+.board.busy { pointer-events: none; filter: brightness(.96); }
+/* §9 첫 진입 — 스피너 금지. 판 모양 그대로 25칸을 깔아 둔다. */
+.tile-skeleton { width: var(--tile-size); height: var(--tile-size); background: var(--line); border-radius: clamp(12px, 2.4vw, 24px); }
+
+.tile {
+  position: relative;
+  width: var(--tile-size);
+  height: var(--tile-size);
+  padding: 0;
+  overflow: hidden;
+  appearance: none;
+  border: 0;
+  border-radius: clamp(12px, 2.4vw, 24px);
+  background: transparent;
+  box-shadow: 0 6px 0 var(--tile-lip, var(--line-strong));
+  cursor: pointer;
+  transition: transform var(--m-press) var(--e-standard), opacity var(--m-fast) var(--e-standard), filter var(--m-fast) var(--e-standard);
+}
+/* 누르면 립이 사라지며 내려앉는다. 전역 button:active(3px)보다 우선해야 한다. */
+.tile:active:not(:disabled) { transform: translateY(6px); box-shadow: none; }
+.tile::after { content: ""; position: absolute; inset: 3px; border: 3px solid rgba(255, 255, 255, .85); border-radius: inherit; pointer-events: none; }
+/* §5.4 — 흐린 drop-shadow가 아니라 자기 색의 어두운 톤 단색 오프셋.
+   --tile-lip은 renderBoard()가 블록 종류에 따라 인라인으로 넣는다. */
+.tile-visual { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.tile-badge { position: absolute; z-index: 4; top: 6%; right: 6%; width: 22px; height: 22px; padding: 3px; background: rgba(255, 255, 255, .92); border-radius: 50%; pointer-events: none; }
+.tile[data-selected="true"] { transform: translateY(-6px) scale(1.05); outline: 4px solid var(--focus); outline-offset: 0; z-index: 2; }
+.tile[data-selected="true"]::before { content: "선택"; position: absolute; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 4px 8px; color: #fff; background: var(--focus); border: 2px solid white; border-radius: 20px; font-size: var(--t-caption); font-weight: 900; }
+/* §8 — bounce는 게임 영역에서만. 힌트·낙하가 그 용도다. */
+.tile.hint { animation: hint-pulse 700ms var(--e-bounce) 2; z-index: 2; }
+.tile.matched { animation: praise-away 280ms var(--e-exit) forwards; }
+.tile.spawned { animation: drop-in var(--m-slow) var(--e-bounce); }
+.tile.invalid { animation: no-shake 300ms var(--e-standard); }
+.tile.drag-source { opacity: .28; filter: grayscale(.3); }
+
+.drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  width: var(--drag-size);
+  height: var(--drag-size);
+  border: 4px solid #fff;
+  border-radius: clamp(12px, 2.4vw, 24px);
+  box-shadow: 0 14px 24px rgba(43, 38, 33, .44), 0 0 0 5px var(--focus);
+  object-fit: cover;
+  pointer-events: none;
+  transform: translate(-50%, -72%) scale(1.08);
+  animation: drag-lift var(--m-fast) var(--e-enter);
+  will-change: left, top;
+}
+
+.celebration-popup {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  pointer-events: none;
+}
+.celebration-popup[hidden] { display: none; }
+.celebration-popup img {
+  width: min(94%, 520px);
+  height: auto;
+  filter: drop-shadow(0 10px 10px rgba(43, 38, 33, .5));
+}
+.celebration-popup img.play { animation: celebration-pop var(--m-celebrate) cubic-bezier(.16,.8,.24,1) both; }
+
+.board-overlay { position: absolute; inset: -4px; z-index: 10; display: grid; place-items: center; padding: 16px; background: rgba(43, 38, 33, .78); border-radius: 28px; backdrop-filter: blur(3px); }
+.board-overlay[hidden] { display: none; }
+.overlay-card { width: min(100%, 430px); padding: 30px 22px; color: var(--ink); background: var(--surface); border: 4px solid var(--reward); border-radius: 25px; box-shadow: 0 10px 0 var(--line-strong); text-align: center; }
+.overlay-kicker { color: var(--carrot-deep); font-size: var(--t-button); font-weight: 900; }
+.overlay-card h1 { margin: 3px 0; font-size: var(--t-display); }
+.overlay-card p { margin: 0 0 20px; font-size: var(--t-section); }
+.overlay-card p strong { display: block; color: var(--carrot-deep); font-size: var(--t-display); font-variant-numeric: tabular-nums; }
+
+.help-row { gap: 12px; justify-content: center; margin-top: 18px; }
+/* 게임 영역 버튼 — 립 있음(§4 L2~L3). .primary-button은 게임 종료 오버레이 전용이다.
+   모달이 이 클래스를 함께 쓰면 "게임=입체 / 모달=플랫" 대비가 무너진다. */
+.wide-button, .primary-button { min-height: 64px; padding: 12px 18px; border-radius: var(--r-md); font-size: var(--t-button); font-weight: 900; cursor: pointer; }
+.wide-button { flex: 1; max-width: 260px; color: var(--ink); background: var(--surface); border: 2px solid var(--btn-edge); box-shadow: 0 5px 0 var(--btn-edge); }
+.primary-button { color: white; background: var(--carrot-deep); border: 3px solid var(--carrot-lip); box-shadow: 0 5px 0 var(--carrot-lip); }
+/* 내려앉는 반응은 립이 있는 버튼에만. 전역 button:active로 두면 모달 버튼까지 튄다. */
+.wide-button:active:not(:disabled), .primary-button:active:not(:disabled), .icon-button:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+
+/* ── 꾸미기 모달 (§6) ── 립·bounce 없음. 구분은 테두리와 여백으로만 한다. */
+dialog { max-width: none; }
+.settings-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(100% - 20px, 640px);
+  max-height: calc(100dvh - 20px);
+  padding: 0;
+  color: var(--ink);
+  background: var(--surface); /* §6.2 — 크림 게임 화면과 대비되어 "설정 모드"임을 알린다 */
+  border: 0;
+  border-radius: var(--r-xl);
+  box-shadow: 0 20px 80px rgba(43, 38, 33, .5);
+}
+/* display:flex가 [open] 없는 다이얼로그의 기본 display:none을 덮어쓴다. 없으면 항상 열려 보인다. */
+.settings-dialog:not([open]), .confirm-dialog:not([open]) { display: none; }
+.settings-dialog::backdrop, .confirm-dialog::backdrop { background: rgba(43, 38, 33, .5); backdrop-filter: blur(3px); }
+
+.dialog-header { gap: 8px; padding: 12px 14px; background: var(--surface); }
+.dialog-heading { flex: 1; min-width: 0; }
+.step-count { display: block; color: var(--carrot-deep); font-size: var(--t-caption); font-weight: 900; font-variant-numeric: tabular-nums; }
+.dialog-header h2 { margin: 0; font-size: var(--t-title); line-height: 1.2; }
+.dialog-nav { flex: 0 0 56px; width: 56px; height: 56px; color: var(--ink); background: var(--surface-warm); border: 0; border-radius: 50%; font-size: 1.842rem; line-height: 1; cursor: pointer; }
+/* 스텝 1에서도 자리는 남겨 둔다. 자리를 없애면 제목이 스텝마다 좌우로 흔들린다. */
+.dialog-nav[hidden] { display: block; visibility: hidden; }
+
+.step-progress { height: 4px; background: var(--line); }
+.step-progress-fill { display: block; width: 33%; height: 100%; background: var(--carrot); transition: width var(--m-base) var(--e-standard); }
+
+.settings-body { flex: 1; min-height: 0; padding: 20px 20px 24px; overflow-y: auto; }
+/* §8 — 좌우 슬라이드가 아니라 페이드 + 8px 상승. 방향 이동은 되돌아갈 수 있는지를 헷갈리게 한다. */
+.step-panel { display: none; }
+.step-panel.active { display: block; animation: step-in var(--m-base) var(--e-enter); }
+.step-lead { margin: 0 0 14px; color: var(--ink-soft); }
+
+/* §6.4 선택 항목 — 가로 스크롤 대신 3열 그리드(§11 Don't).
+   문서는 카드 면을 --surface로 두지만 모달 바닥이 흰색이라 그러면 카드가 보이지 않는다.
+   따뜻한 면 + 3px 테두리로 "누를 수 있는 칸"임을 남긴다. 두께는 선택 여부와 무관하게
+   3px 고정 — 선택할 때 2→3px로 바뀌면 그리드가 1px씩 밀린다. */
+.choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.choice-card { position: relative; display: grid; justify-items: center; align-content: start; gap: 4px; min-height: 96px; padding: 10px 6px; color: var(--ink); background: var(--surface-warm); border: 3px solid var(--line-strong); border-radius: var(--r-md); cursor: pointer; transition: background var(--m-fast) var(--e-standard), border-color var(--m-fast) var(--e-standard); }
+.choice-card img, .choice-card canvas { display: block; width: 66px; height: 66px; border-radius: 12px; }
+.choice-card span { font-size: var(--t-caption); font-weight: 800; }
+.choice-card[aria-checked="true"] { background: var(--focus-tint); border-color: var(--focus); }
+.choice-card[aria-checked="true"]::before { content: "✓"; position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 26px; height: 26px; color: #fff; background: var(--focus); border-radius: 50%; font-size: var(--t-body-s); font-weight: 900; }
+.choice-card[aria-checked="true"]::after { content: "선택됨"; color: var(--focus); font-size: var(--t-caption); font-weight: 900; }
+
+/* §6.3 모달 버튼 — 전부 플랫. 누름 피드백은 이동이 아니라 색으로 준다. */
+.step-button, .flat-button, .disabled-preview { padding: 12px 16px; border-radius: var(--r-md); font-size: var(--t-button); font-weight: 900; cursor: pointer; transition: background var(--m-fast) var(--e-standard); }
+.step-button { width: 100%; min-height: 64px; color: #fff; background: var(--carrot-deep); border: 0; }
+.step-button:disabled { color: var(--ink-disabled); background: var(--surface-mute); cursor: not-allowed; }
+.flat-button { min-height: 56px; color: var(--ink); background: var(--surface); border: 2px solid var(--line-strong); }
+.flat-button.accent { color: var(--carrot-deep); background: var(--carrot-tint); border: 0; }
+.flat-button.danger { color: var(--danger); background: var(--danger-tint); border: 2px solid var(--danger); }
+.flat-button.wide { width: 100%; }
+.step-button:active:not(:disabled) { background: var(--carrot-lip); }
+.flat-button:active:not(:disabled) { background: var(--surface-mute); }
+.flat-button.accent:active:not(:disabled), .flat-button.danger:active:not(:disabled), .stepper:active:not(:disabled) { filter: brightness(.94); }
+.button-row { gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.button-row .flat-button { flex: 1; min-width: 130px; }
+
+/* §6.1 — 매번 보일 필요가 없는 보관·준비 중 항목은 첫 화면 하단 "더 보기" 안으로. */
+.more-panel { margin-top: 16px; background: var(--surface-warm); border-radius: var(--r-md); }
+.more-panel summary { min-height: 56px; padding: 15px 16px; font-size: var(--t-button); font-weight: 900; cursor: pointer; }
+.more-body { padding: 0 16px 16px; }
+.more-title { margin: 14px 0 4px; font-size: var(--t-section); }
+.more-note { margin: 0 0 10px; color: var(--ink-soft); font-size: var(--t-body-s); }
+
+.photo-preview { display: grid; place-items: center; min-height: 210px; margin-bottom: 14px; padding: 12px; background: var(--surface-warm); border-radius: var(--r-lg); }
+.photo-preview canvas { width: min(100%, 186px); height: auto; aspect-ratio: 1; border-radius: var(--r-md); object-fit: cover; }
+.photo-empty { margin: 0; color: var(--ink-soft); text-align: center; }
+
+.crop-stage { max-width: 360px; margin: 0 auto; }
+#cropCanvas { display: block; width: 100%; aspect-ratio: 1; background: repeating-conic-gradient(var(--line) 0 25%, var(--surface-warm) 0 50%) 0 0/22px 22px; border: 3px solid var(--line-strong); border-radius: var(--r-lg); touch-action: none; cursor: grab; }
+/* §6.5 — 캔버스를 덮는 오버레이 힌트보다 아래에 상시 표시하는 편이 읽힌다. */
+.crop-guide { margin: 10px 0 18px; color: var(--ink-soft); font-size: var(--t-body-s); text-align: center; }
+
+.slider-block { margin-bottom: 16px; }
+.slider-block label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: var(--t-body-s); font-weight: 800; }
+.slider-block output { color: var(--carrot-deep); font-variant-numeric: tabular-nums; }
+.slider-row { gap: 10px; }
+/* §6.5 — 드래그가 어려운 손을 위한 대체 조작. 슬라이더만 두지 않는다. */
+.stepper { flex: 0 0 56px; width: 56px; height: 56px; color: var(--carrot-deep); background: var(--carrot-tint); border: 0; border-radius: var(--r-md); font-size: 1.421rem; font-weight: 900; line-height: 1; cursor: pointer; }
+.slider-row input[type="range"] { flex: 1; min-width: 0; height: 48px; margin: 0; background: transparent; accent-color: var(--carrot-deep); -webkit-appearance: none; appearance: none; }
+.slider-row input[type="range"]::-webkit-slider-runnable-track { height: 12px; background: var(--line-strong); border-radius: var(--r-full); }
+.slider-row input[type="range"]::-webkit-slider-thumb { width: 36px; height: 36px; margin-top: -12px; background: var(--carrot-deep); border: 3px solid var(--surface); border-radius: 50%; -webkit-appearance: none; appearance: none; }
+.slider-row input[type="range"]::-moz-range-track { height: 12px; background: var(--line-strong); border-radius: var(--r-full); }
+.slider-row input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; background: var(--carrot-deep); border: 3px solid var(--surface); border-radius: 50%; }
+
+.done-card { display: grid; justify-items: center; margin-bottom: 16px; padding: 24px 16px; background: var(--success-tint); border-radius: var(--r-lg); text-align: center; }
+.done-card img { width: 120px; height: 120px; border-radius: var(--r-lg); }
+.done-title { margin: 12px 0 4px; font-size: var(--t-section); font-weight: 900; }
+.done-card .step-lead { margin: 0; }
+
+.privacy-note { margin: 10px 0 0; padding: 12px; color: var(--ink); background: var(--carrot-tint); border-left: 5px solid var(--carrot); border-radius: 12px; font-size: var(--t-body-s); }
+.disabled-preview { width: 100%; min-height: 56px; color: var(--ink-disabled); background: var(--surface-warm); border: 2px dashed var(--line-strong); cursor: not-allowed; }
+
+/* §6.3 — 푸터에는 주요 버튼 한 개만. 보조 동작은 본문 안에 둔다. */
+.dialog-footer { padding: 12px 20px max(12px, env(safe-area-inset-bottom)); background: var(--surface); border-top: 2px solid var(--line); }
+.step-note { margin: 0 0 8px; color: var(--ink-soft); font-size: var(--t-body-s); text-align: center; }
+
+.confirm-dialog { width: min(100% - 28px, 440px); padding: 0; border: 0; border-radius: var(--r-xl); background: var(--surface); }
+.confirm-content { padding: 28px; text-align: center; }
+.confirm-icon { display: grid; place-items: center; width: 65px; height: 65px; margin: 0 auto; color: white; background: var(--carrot-deep); border-radius: 50%; font-size: 2rem; }
+.confirm-content h2 { margin: 16px 0 3px; font-size: var(--t-title); }
+.confirm-content p { margin: 0 0 20px; color: var(--ink-soft); }
+.confirm-actions { gap: 10px; }
+.confirm-actions button { flex: 1; width: auto; }
+
+.toast { position: fixed; z-index: 100; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); width: max-content; max-width: calc(100% - 28px); padding: 12px 19px; color: white; background: rgba(43, 38, 33, .93); border: 2px solid white; border-radius: var(--r-full); font-size: var(--t-body); font-weight: 800; opacity: 0; transform: translate(-50%, 20px); transition: var(--m-base) var(--e-standard); pointer-events: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* §9 — 잘 됐는지 안 됐는지를 글자만이 아니라 색으로도 알린다. 흰 글자 대비는 5.3:1 / 5.5:1. */
+.toast.success { background: var(--success); }
+.toast.danger { background: var(--danger); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+
+/* §5.4 힌트 — 통통 튀는 펄스 2회 + 아래에서 위로 살짝 점프 */
+@keyframes hint-pulse { 35% { transform: translateY(-9px) scale(1.08); } 70% { transform: translateY(0) scale(1); } }
+@keyframes warn-pop { 40% { transform: scale(1.08); } }
+@keyframes praise-away { 0% { transform: scale(1); opacity: 1; } 45% { transform: scale(1.1); opacity: 1; } 100% { transform: translateY(-10px) scale(.15); opacity: 0; } }
+@keyframes drop-in { from { transform: translateY(-45px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes no-shake { 25%, 75% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
+@keyframes drag-lift { from { opacity: .6; transform: translate(-50%, -60%) scale(.85); } }
+@keyframes step-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes celebration-pop {
+  0% { opacity: 0; transform: scale(.45) rotate(-6deg); }
+  24% { opacity: 1; transform: scale(1.08) rotate(2deg); }
+  65% { opacity: 1; transform: scale(1) rotate(0); }
+  100% { opacity: 0; transform: translateY(-26px) scale(.9); }
+}
+
+@media (max-width: 560px) {
+  /* 계획 D4 — 68px는 398px 폭부터 가능하다. 그 아래에서는 여백과 간격을 조여
+     확보 가능한 최대치를 쓴다. 360px에서 60.4px, 390px에서 66.4px.
+     구성: 앱 여백 8×2 + 테두리 3×2 + 보드 안여백 6×2 + 간격 6×4 = 58px */
+  :root { --tile-gap: 6px; --tile-size: calc((100vw - 58px) / 5); }
+  html { font-size: 112.5%; } /* 18px 상당. §10 — 이보다 줄이지 않는다 */
+  .app-shell { padding-inline: 8px; }
+  .brand-mark { width: 42px; height: 42px; }
+  .icon-button { min-width: 62px; min-height: 56px; padding-inline: 7px; }
+  .scoreboard { gap: 6px; }
+  .score-card { flex-basis: 82px; min-height: 72px; border-radius: 15px; }
+  .score-card strong { font-size: 1.5rem; }
+  .board { border-width: 3px; padding: 6px; }
+  /* §6.2 / §10 — 좁은 화면에서 모달은 전체 화면 시트. 상단만 둥글린다. */
+  .settings-dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+  .dialog-header h2 { font-size: 1.368rem; } /* 26px 상당. §2.2 — 이보다 줄이지 않는다 */
+  .settings-body { padding: 16px 14px 20px; }
+  .dialog-footer { padding-inline: 14px; }
+  .choice-grid { gap: 10px; }
+  .choice-card { padding: 8px 4px; }
+}
+
+@media (max-width: 370px) {
+  .message-card span { display: none; }
+  .brand { font-size: 1.316rem; }
+  .brand-mark { display: none; }
+  .help-row { gap: 7px; }
+  .wide-button { padding-inline: 8px; font-size: var(--t-body-s); }
+}
+
+/* 계획 A5 — OS·브라우저에 고대비를 켜 둔 사용자에게 한 단계 더 진한 벌을 준다.
+   토큰 값과 경계 두께만 바꾸고 레이아웃 수치(버튼 높이·블록 크기·간격)는 건드리지 않는다.
+   여기서 크기가 달라지면 같은 앱인데 조작 감각이 달라진다.
+   이 :root는 scripts/check-contrast.mjs가 기본값과 따로 떼어 별도로 검사한다. */
+@media (prefers-contrast: more) {
+  :root {
+    --ink-soft:      #574e44;
+    --ink-faint:     #6b6154;
+    --ink-disabled:  #574e44;
+    --line:          #c9b9a4;
+    --line-strong:   #a4906f;
+    --btn-edge:      #6d5e45;
+    --board-edge:    #6b5133;
+    --carrot-deep:   #a33509;
+    --carrot-lip:    #662106;
+    --focus:         #14509f;
+    --success:       #145c3f;
+    --danger:        #98211f;
+    --reward-lip:    #8a6103;
+  }
+  .board { border-width: 5px; }
+  .tile::after { border-width: 4px; }
+  .icon-button, .wide-button, .flat-button { border-width: 3px; }
+  .choice-card { border-width: 4px; }
+  #cropCanvas { border-width: 4px; }
+  /* 플랫한 모달이라 바깥 경계가 배경뿐이다. 고대비에서는 테두리를 준다. */
+  .settings-dialog, .confirm-dialog { border: 3px solid var(--line-strong); }
+  .step-progress { background: var(--line-strong); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  /* §8 — 모션을 줄여도 "눌렸다"는 피드백까지 없애면 안 된다.
+     위 규칙은 전환 시간만 줄일 뿐 :active의 이동(translateY)은 그대로 남으므로,
+     여기서 이동을 걷어내고 대신 색으로 알린다. */
+  .wide-button:active:not(:disabled), .icon-button:active:not(:disabled) { transform: none; background: var(--surface-mute); }
+  .primary-button:active:not(:disabled) { transform: none; background: var(--carrot-lip); }
+  .tile:active:not(:disabled) { transform: none; filter: brightness(.88); }
+}

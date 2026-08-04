@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sonjupang-webapp",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "webapp",
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}

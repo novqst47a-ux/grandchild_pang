@@ -165,8 +165,42 @@
     <button id="btnPersist" class="ghost">영구 저장 요청</button>
     <button id="btnClear" class="danger">전체 초기화</button>
   </div>
-  <p class="note">블록을 <b>탭</b>하면 블록 얼굴이 작게 여러 개로 폭죽처럼 퍼집니다(조각내기 아님).
+  <p class="note">블록을 <b>탭</b>하면 프레임 내부 얼굴만 축소 복제되어 폭죽처럼 퍼집니다.
      <b>56px</b>는 실제 보드 크기 비교용이라 개별 삭제(×) 버튼을 숨깁니다.</p>
+
+  <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line)">
+    <h2><b>4.1</b>파티클 테스트 옵션 (4종류 × 2효과)</h2>
+
+    <div style="margin-bottom:8px">
+      <div style="font-size:12px; color:var(--dim); margin-bottom:4px">파티클 이미지 종류</div>
+      <div class="seg" id="segPartImg">
+        <button data-val="face" aria-pressed="true">얼굴만</button>
+        <button data-val="heart">하트</button>
+        <button data-val="full">블록 전체</button>
+        <button data-val="shape">도형 (사각+원)</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div style="font-size:12px; color:var(--dim); margin-bottom:4px">파티클 연출 효과</div>
+      <div class="seg" id="segPartFx">
+        <button data-val="radial" aria-pressed="true">사방으로 퍼짐</button>
+        <button data-val="popFade">모양 등장 &amp; 소멸</button>
+        <button data-val="bigFadeOut">모양 크게 &amp; F/O</button>
+      </div>
+    </div>
+
+    <div class="slider">
+      <label for="sPartCount">파티클 수</label>
+      <input type="range" id="sPartCount" min="1" max="60" value="20" step="1">
+      <output id="oPartCount">20개</output>
+    </div>
+    <div class="slider">
+      <label for="sPartSize">파티클 크기</label>
+      <input type="range" id="sPartSize" min="10" max="60" value="24" step="1">
+      <output id="oPartSize">24px</output>
+    </div>
+  </div>
 </section>
 
 <section>
@@ -249,13 +283,39 @@ function shape(ctx, path, fill, stroke, lw){
   if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke(path); }
 }
 
-/* ─────────────────────────────  프레임 5종  ─────────────────────────────
-   외부 이미지 없이 전부 canvas 경로로 그린다.
-   색상(핑크/브라운/오렌지/퍼플/그린) + 실루엣(귀 모양) + 구멍 모양을 모두 다르게 잡아
-   56px 보드 크기에서도 구분되도록 한다. */
+/* 가로로 퍼진 수학 기호형 하트 대신, 세로 비중이 큰 스티커형 실루엣을 사용한다. */
+function heartPath(cx, cy, width, height = width){
+  const p = new Path2D();
+  const hw = width / 2;
+  const hh = height / 2;
+  p.moveTo(cx, cy - hh * 0.42);
+  p.bezierCurveTo(
+    cx - hw * 0.34, cy - hh * 1.08,
+    cx - hw, cy - hh * 0.72,
+    cx - hw, cy - hh * 0.14
+  );
+  p.bezierCurveTo(
+    cx - hw, cy + hh * 0.42,
+    cx - hw * 0.38, cy + hh * 0.80,
+    cx, cy + hh
+  );
+  p.bezierCurveTo(
+    cx + hw * 0.38, cy + hh * 0.80,
+    cx + hw, cy + hh * 0.42,
+    cx + hw, cy - hh * 0.14
+  );
+  p.bezierCurveTo(
+    cx + hw, cy - hh * 0.72,
+    cx + hw * 0.34, cy - hh * 1.08,
+    cx, cy - hh * 0.42
+  );
+  p.closePath();
+  return p;
+}
+
 const FRAMES = [
   {
-    id:'rabbit', name:'토끼', line:'#F2609A',
+    id:'rabbit', name:'토끼', line:'#F2609A', gradient:['#F2609A', '#FF9DBE'],
     hole:{ cx:128, cy:156, path:() => ellipsePath(128,156,72,68) },
     draw(ctx){
       for (const [x, rot] of [[86,-0.22],[170,0.22]]){
@@ -270,7 +330,7 @@ const FRAMES = [
     }
   },
   {
-    id:'bear', name:'곰', line:'#59371F',
+    id:'bear', name:'곰', line:'#59371F', gradient:['#8B5E3C', '#E0B490'],
     hole:{ cx:128, cy:154, path:() => roundRectPath(128,154,144,138,44) },
     draw(ctx){
       for (const x of [58,198]){
@@ -282,7 +342,7 @@ const FRAMES = [
     }
   },
   {
-    id:'cat', name:'고양이', line:'#C05A00',
+    id:'cat', name:'고양이', line:'#C05A00', gradient:['#C05A00', '#FFB259'],
     hole:{ cx:128, cy:150, path:() => roundedPoly(regularPoly(128,150,80,4,-Math.PI/2), 34) },
     draw(ctx){
       const ear = [{x:44,y:96},{x:62,y:12},{x:120,y:56}];
@@ -299,7 +359,7 @@ const FRAMES = [
     }
   },
   {
-    id:'star', name:'별', line:'#5B21B6',
+    id:'star', name:'별', line:'#5B21B6', gradient:['#7C3AED', '#A78BFA'],
     hole:{ cx:128, cy:132, path:() => circlePath(128,132,60) },
     draw(ctx){
       shape(ctx, roundedPoly(starPoly(128,132,126,80),12), '#A78BFA', '#5B21B6', 9);
@@ -307,7 +367,7 @@ const FRAMES = [
     }
   },
   {
-    id:'flower', name:'꽃', line:'#0B6B57',
+    id:'flower', name:'꽃', line:'#0B6B57', gradient:['#0B6B57', '#34D399'],
     hole:{ cx:128, cy:134, path:() => roundedPoly(regularPoly(128,134,64,6,-Math.PI/2), 20) },
     draw(ctx){
       for (let i = 0; i < 8; i++){
@@ -315,6 +375,35 @@ const FRAMES = [
         shape(ctx, circlePath(128+Math.cos(a)*76, 134+Math.sin(a)*76, 40), '#34D399', '#0B6B57', 7);
       }
       shape(ctx, circlePath(128,134,84), '#A7F3D0', '#0B6B57', 8);
+    }
+  },
+  {
+    id:'heart', name:'하트', line:'#8F2447', gradient:['#FF5F87', '#FFD4DE'],
+    hole:{ cx:128, cy:132, path:() => heartPath(128, 132, 154, 174) },
+    draw(ctx){
+      const outer = heartPath(128, 127, 224, 226);
+      const cushion = heartPath(128, 128, 198, 202);
+      shape(ctx, outer, '#FF5F87', '#8F2447', 10);
+      shape(ctx, cushion, '#FFD4DE', '#FFF4F0', 6);
+
+      /* 작은 장식 하트 대신 봉제 스티치와 광택으로 한 덩어리처럼 보이게 한다. */
+      ctx.save();
+      ctx.strokeStyle = '#D83F69';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.setLineDash([5, 8]);
+      ctx.stroke(heartPath(128, 128, 181, 185));
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = '#FFF8F5';
+      ctx.lineWidth = 9;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(65, 76);
+      ctx.bezierCurveTo(72, 52, 91, 43, 108, 55);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 ];
@@ -660,31 +749,57 @@ const dbClear  = ()  => tx('readwrite', s => s.clear());
 
 /* ─────────────────────────────  합성 → WebP → 저장  ───────────────────────────── */
 async function toWebP(canvas){
-  const blob = await new Promise(r => canvas.toBlob(r, 'image/webp', 0.92));
-  if (blob && blob.type === 'image/webp') return blob;
-  log('WebP 인코딩 미지원 → PNG로 폴백', 'warn');
-  return await new Promise(r => canvas.toBlob(r, 'image/png'));
+  if (canvas.convertToBlob){
+    try{
+      const b = await canvas.convertToBlob({type:'image/webp', quality:0.92});
+      if (b) return b;
+    }catch(_){}
+  }
+  if (canvas.toBlob){
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/webp', 0.92));
+    if (blob && blob.type === 'image/webp') return blob;
+    return await new Promise(r => canvas.toBlob(r, 'image/png'));
+  }
+  log('WebP/PNG 인코딩 실패', 'warn');
+  return null;
 }
 
 $('#btnSave').onclick = async () => {
   if (!state.img) return;
   const t0 = performance.now();
-  const off = ('OffscreenCanvas' in window) ? new OffscreenCanvas(256, 256) : document.createElement('canvas');
-  off.width = off.height = 256;
-  const ctx = off.getContext('2d');
-  renderBlock(ctx, 256);                                     // 오프스크린 마스크 합성
-  let blob;
-  if (off.convertToBlob){
-    blob = await off.convertToBlob({type:'image/webp', quality:0.92});
-    if (blob.type !== 'image/webp'){ log('WebP 미지원 → PNG 폴백', 'warn'); }
-  } else {
-    blob = await toWebP(off);
+  try{
+    // 1) 합성 블록 이미지 생성 (보드 그리드 표시용)
+    const off = document.createElement('canvas');
+    off.width = off.height = 256;
+    const ctx = off.getContext('2d');
+    renderBlock(ctx, 256);
+    const blob = await toWebP(off);
+
+    // 2) 프레임 미합성 순수 크롭 원본 사진 생성 (파티클용)
+    const photoOff = document.createElement('canvas');
+    photoOff.width = photoOff.height = 256;
+    const photoCtx = photoOff.getContext('2d');
+    photoCtx.fillStyle = '#FF9DBE'; photoCtx.fillRect(0, 0, 256, 256);
+    if (state.img) drawPhoto(photoCtx, state.img, state.tr);
+    const photoBlob = await toWebP(photoOff);
+
+    await dbAdd({
+      blob,
+      photoBlob,
+      frameId: state.frame.id,
+      holeScale: state.holeScale,
+      mime: blob ? blob.type : 'image/png',
+      createdAt: Date.now()
+    });
+
+    log(`저장: ${state.frame.name} · ${blob ? blob.type : 'PNG'} · ${blob ? (blob.size/1024).toFixed(1) : 0} KB · ${(performance.now()-t0).toFixed(0)}ms`, 'ok');
+    toast('블록 저장됨');
+    await requestPersist(true);
+    await refreshGrid();
+  }catch(err){
+    log('블록 저장 실패: ' + err.message, 'err');
+    console.error(err);
   }
-  await dbAdd({blob, frameId:state.frame.id, holeScale:state.holeScale, mime:blob.type, createdAt:Date.now()});
-  log(`저장: ${state.frame.name} · ${blob.type} · ${(blob.size/1024).toFixed(1)} KB · ${(performance.now()-t0).toFixed(0)}ms`, 'ok');
-  toast('블록 저장됨');
-  await requestPersist(true);
-  await refreshGrid();
 };
 
 /* ─────────────────────────────  저장 목록 그리드  ───────────────────────────── */
@@ -701,6 +816,11 @@ async function refreshGrid(){
   } else {
     for (const r of rows){
       const url = URL.createObjectURL(r.blob); urls.push(url);
+      let photoImg = null;
+      if (r.photoBlob){
+        const photoUrl = URL.createObjectURL(r.photoBlob); urls.push(photoUrl);
+        photoImg = new Image(); photoImg.src = photoUrl;
+      }
       const tile = document.createElement('div');
       tile.className = 'tile';
       tile.style.setProperty('--sz', tileSize + 'px');
@@ -712,7 +832,8 @@ async function refreshGrid(){
       tile.append(img, del);
       tile.onclick = () => {
         const b = tile.getBoundingClientRect();
-        burst(img, b.left + b.width/2, b.top + b.height/2);
+        const frame = FRAMES.find(f => f.id === r.frameId) || FRAMES[0];
+        burst(img, frame, r.holeScale || 0.85, b.left + b.width/2, b.top + b.height/2, photoImg || img);
         tile.classList.add('pop');
         setTimeout(() => tile.classList.remove('pop'), 130);
       };
@@ -768,10 +889,37 @@ async function updateStoreInfo(count){
   $('#storeInfo').innerHTML = parts.join(' · ');
 }
 
-/* ─────────────────────────────  파티클: 얼굴 그대로 작게 × 여러 개  ─────────────
-   요구사항대로 '조각내기'가 아니라, 블록 얼굴 전체를 축소 복제해 폭죽처럼 퍼뜨린다. */
+/* ─────────────────────────────  파티클: 3종류 이미지 × 2종류 효과  ───────────── */
 const fx = $('#fx'), fxCtx = fx.getContext('2d');
 let parts = [], fxRunning = false, lastT = 0;
+
+const particleConfig = {
+  imgType: 'face',      // 'face', 'full', 'shape'
+  effectType: 'radial', // 'radial', 'popFade'
+  count: 20,
+  size: 24
+};
+
+$('#segPartImg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  particleConfig.imgType = b.dataset.val;
+  [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+};
+$('#segPartFx').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  particleConfig.effectType = b.dataset.val;
+  [...e.currentTarget.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+};
+
+$('#sPartCount').oninput = e => {
+  particleConfig.count = +e.target.value;
+  $('#oPartCount').textContent = e.target.value + '개';
+};
+$('#sPartSize').oninput = e => {
+  particleConfig.size = +e.target.value;
+  $('#oPartSize').textContent = e.target.value + 'px';
+};
+
 function fitFx(){
   const dpr = Math.min(devicePixelRatio || 1, 2);
   fx.width = Math.round(innerWidth*dpr); fx.height = Math.round(innerHeight*dpr);
@@ -779,38 +927,262 @@ function fitFx(){
 }
 addEventListener('resize', fitFx); fitFx();
 
-function burst(img, cx, cy){
-  const n = 18 + (Math.random()*6|0);
-  for (let i = 0; i < n; i++){
-    const a = -Math.PI/2 + (Math.random()-0.5)*Math.PI*1.7;
-    const sp = 190 + Math.random()*430;
-    parts.push({
-      img, x:cx, y:cy,
-      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
-      size: 15 + Math.random()*21,      // 원본보다 확실히 작게
-      rot: Math.random()*TAU, vr: (Math.random()-0.5)*7,
-      t: 0, ttl: 0.75 + Math.random()*0.6
-    });
+// 1) 프레임 구멍 내부(얼굴) 영역만 추출
+function createFaceCanvas(img, frame, holeScale){
+  const scale = holeScale || 0.85;
+  const hole = holePath(frame, scale);
+  const cx = frame.hole.cx, cy = frame.hole.cy;
+  const r = Math.ceil(95 * scale);
+  const faceCv = document.createElement('canvas');
+  faceCv.width = faceCv.height = r * 2;
+  const ctx = faceCv.getContext('2d');
+  ctx.translate(r - cx, r - cy);
+  ctx.clip(hole);
+  ctx.drawImage(img, 0, 0, 256, 256);
+  return faceCv;
+}
+
+// 3) 세로 비중이 충분한 스티커 하트 파티클 (프레임 미합성 순수 크롭 원본 사용)
+function createHeartCanvas(photoImg, frame, holeScale){
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 256;
+  const ctx = cv.getContext('2d');
+
+  const hPath = heartPath(128, 125, 218, 226);
+
+  /* 작은 크기에서도 사진과 외곽이 분리되어 보이는 스티커 그림자 */
+  ctx.save();
+  ctx.translate(0, 6);
+  ctx.shadowColor = 'rgba(58, 16, 36, 0.32)';
+  ctx.shadowBlur = 10;
+  shape(ctx, hPath, '#8F2447', null);
+  ctx.restore();
+
+  ctx.save();
+  ctx.clip(hPath);
+
+  ctx.fillStyle = '#FFD4DE';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.drawImage(photoImg, 0, 0, 256, 256);
+
+  const shine = ctx.createLinearGradient(42, 30, 178, 182);
+  shine.addColorStop(0, 'rgba(255,255,255,0.26)');
+  shine.addColorStop(0.42, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shine;
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.restore();
+
+  ctx.strokeStyle = '#FFF8F5';
+  ctx.lineWidth = 18;
+  ctx.lineJoin = 'round';
+  ctx.stroke(hPath);
+
+  ctx.strokeStyle = frame.line || '#8F2447';
+  ctx.lineWidth = 7;
+  ctx.stroke(hPath);
+
+  return cv;
+}
+
+// 4) 단순 도형 파티클 (사각형/원형 + 프레임 색상 그라데이션)
+function createShapeCanvas(frame, shapeKind, size = 64){
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, size, size);
+  const colors = frame.gradient || [frame.line || '#4dd0a7', '#ffffff'];
+  g.addColorStop(0, colors[0]);
+  g.addColorStop(1, colors[1]);
+  ctx.fillStyle = g;
+  ctx.strokeStyle = frame.line || colors[0];
+  ctx.lineWidth = Math.max(2, size * 0.08);
+
+  if (shapeKind === 'rect'){
+    const w = size * 0.72, h = size * 0.72, r = size * 0.15;
+    const p = roundRectPath(size/2, size/2, w, h, r);
+    ctx.fill(p); ctx.stroke(p);
+  } else {
+    const p = circlePath(size/2, size/2, size * 0.36);
+    ctx.fill(p); ctx.stroke(p);
   }
+  return c;
+}
+
+function burst(img, frame, holeScale, cx, cy, photoImg){
+  const imgType = particleConfig.imgType;       // 'face', 'heart', 'full', 'shape'
+  const effectType = particleConfig.effectType; // 'radial', 'popFade'
+  const n = particleConfig.count;
+  const baseSize = particleConfig.size;
+
+  const rawPhoto = photoImg || img;
+
+  let faceCv = null, heartCv = null;
+  const getFaceCv = () => faceCv || (faceCv = createFaceCanvas(img, frame, holeScale));
+  // 하트 파티클은 프레임 레이어가 합성되지 않은 순수 크롭 원본 사진(rawPhoto)으로 생성
+  const getHeartCv = () => heartCv || (heartCv = createHeartCanvas(rawPhoto, frame, holeScale));
+  const getShapeCv = (kind, sz = 64) => createShapeCanvas(frame, kind, sz);
+
+  if (effectType === 'radial'){
+    // [효과 1] 사방으로 퍼지는 일반 폭발 (속도/중력/회전)
+    for (let i = 0; i < n; i++){
+      const a = -Math.PI/2 + (Math.random()-0.5)*Math.PI*1.7;
+      const sp = 190 + Math.random()*430;
+      const pSize = baseSize * (0.75 + Math.random()*0.5);
+      let pImg;
+      if (imgType === 'full') pImg = img;
+      else if (imgType === 'face') pImg = getFaceCv();
+      else if (imgType === 'heart') pImg = getHeartCv();
+      else pImg = getShapeCv(i % 2 === 0 ? 'rect' : 'circle');
+
+      parts.push({
+        img: pImg, x: cx, y: cy,
+        vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+        gravity: 1150,
+        size: pSize,
+        rot: Math.random()*TAU, vr: (Math.random()-0.5)*7,
+        t: 0, ttl: 0.75 + Math.random()*0.6,
+        isPop: false, delay: 0
+      });
+    }
+  } else if (effectType === 'popFade') {
+    // [효과 2] 사각+원형 파티클은 퍼지고, 지정한 이미지는 주변에 나타났다 사라짐 (회전/추락 없음)
+    const sparkCount = n === 1 ? 1 : Math.round(n * 0.75);
+    for (let i = 0; i < sparkCount; i++){
+      const a = -Math.PI/2 + (Math.random()-0.5)*Math.PI*1.8;
+      const sp = 160 + Math.random()*380;
+      const pSize = 10; // 10px로 고정
+      const pImg = getShapeCv(i % 2 === 0 ? 'rect' : 'circle');
+      parts.push({
+        img: pImg, x: cx, y: cy,
+        vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+        gravity: 900,
+        size: pSize,
+        rot: Math.random()*TAU, vr: (Math.random()-0.5)*8,
+        t: 0, ttl: 0.6 + Math.random()*0.5,
+        isPop: false, delay: 0
+      });
+    }
+
+    // 지정 이미지 주변 팝업 (회전/추락 없음)
+    const popCount = n === 1 ? 1 : Math.min(n, 7);
+    for (let j = 0; j < popCount; j++){
+      const R = popCount === 1 ? 0 : 28 + (j % 2) * 22 + Math.random() * 25;
+      const ang = j * (TAU / popCount) + (Math.random() - 0.5) * 0.35;
+      const px = cx + Math.cos(ang) * R;
+      const py = cy + Math.sin(ang) * R;
+      const pSize = baseSize * (1.1 + Math.random() * 0.4);
+
+      let pImg;
+      if (imgType === 'full') pImg = img;
+      else if (imgType === 'face') pImg = getFaceCv();
+      else if (imgType === 'heart') pImg = getHeartCv();
+      else pImg = getShapeCv(j % 2 === 0 ? 'rect' : 'circle', 80);
+
+      parts.push({
+        img: pImg, x: px, y: py,
+        vx: 0, vy: 0, gravity: 0,
+        size: pSize,
+        rot: 0, vr: 0,
+        t: 0, ttl: 0.65 + Math.random() * 0.35,
+        isPop: true, delay: j * 0.04
+      });
+    }
+  } else if (effectType === 'bigFadeOut') {
+    // [효과 3] 모양 크게 & F/O
+    const popCount = n === 1 ? 1 : Math.min(n, 7);
+    for (let j = 0; j < popCount; j++){
+      const R = popCount === 1 ? 0 : Math.random() * 15;
+      const ang = Math.random() * TAU;
+      const px = cx + Math.cos(ang) * R;
+      const py = cy + Math.sin(ang) * R;
+      const pSize = baseSize * (1.1 + Math.random() * 0.3);
+
+      let pImg;
+      if (imgType === 'full') pImg = img;
+      else if (imgType === 'face') pImg = getFaceCv();
+      else if (imgType === 'heart') pImg = getHeartCv();
+      else pImg = getShapeCv(j % 2 === 0 ? 'rect' : 'circle', 80);
+
+      parts.push({
+        img: pImg, x: px, y: py,
+        vx: 0, vy: 0, gravity: 0,
+        size: pSize,
+        rot: 0, vr: 0,
+        t: 0, ttl: 0.8 + Math.random() * 0.4,
+        isBigFadeOut: true, delay: j * 0.06
+      });
+    }
+  }
+
   if (!fxRunning){ fxRunning = true; lastT = performance.now(); requestAnimationFrame(stepFx); }
 }
+
 function stepFx(now){
   const dt = Math.min((now - lastT)/1000, 0.05); lastT = now;
   fxCtx.clearRect(0, 0, fx.width, fx.height);
   for (let i = parts.length-1; i >= 0; i--){
     const p = parts[i];
+    if (p.delay > 0){
+      p.delay -= dt;
+      continue;
+    }
     p.t += dt;
     if (p.t >= p.ttl){ parts.splice(i, 1); continue; }
-    p.vy += 1150*dt;                 // 중력
-    p.vx *= (1 - 1.1*dt); p.vy *= (1 - 0.25*dt);
-    p.x += p.vx*dt; p.y += p.vy*dt; p.rot += p.vr*dt;
-    const k = p.t/p.ttl;
-    fxCtx.save();
-    fxCtx.globalAlpha = k < 0.6 ? 1 : 1 - (k-0.6)/0.4;
-    fxCtx.translate(p.x, p.y); fxCtx.rotate(p.rot);
-    const s = p.size * (1 + 0.25*Math.sin(Math.PI*k));
-    fxCtx.drawImage(p.img, -s/2, -s/2, s, s);
-    fxCtx.restore();
+
+    const k = p.t / p.ttl;
+
+    if (p.isBigFadeOut){
+      // 모양 크게 & F/O (바운스 등장 후 천천히 축소 및 페이드아웃)
+      let scaleFactor = 1;
+      let alpha = 1;
+      
+      if (k < 0.2) {
+        scaleFactor = (k / 0.2) * 1.4;
+        alpha = k / 0.2;
+      } else if (k < 0.35) {
+        scaleFactor = 1.4 - ((k - 0.2) / 0.15) * 0.4;
+        alpha = 1;
+      } else {
+        const t = (k - 0.35) / 0.65;
+        scaleFactor = 1.0 - t * 0.7;
+        alpha = 1 - t;
+      }
+
+      fxCtx.save();
+      fxCtx.globalAlpha = clamp(alpha, 0, 1);
+      fxCtx.translate(p.x, p.y);
+      const s = p.size * scaleFactor;
+      fxCtx.drawImage(p.img, -s/2, -s/2, s, s);
+      fxCtx.restore();
+    } else if (p.isPop){
+      // 모양 등장 & 소멸 (회전 / 추락 없음)
+      let scaleFactor = 1;
+      if (k < 0.2) scaleFactor = (k / 0.2) * 1.15;
+      else if (k < 0.35) scaleFactor = 1.15 - (k - 0.2) * 1.0;
+      else scaleFactor = 1.0;
+
+      const alpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+
+      fxCtx.save();
+      fxCtx.globalAlpha = alpha;
+      fxCtx.translate(p.x, p.y);
+      const s = p.size * scaleFactor;
+      fxCtx.drawImage(p.img, -s/2, -s/2, s, s);
+      fxCtx.restore();
+    } else {
+      // 퍼지는 일반 파티클 (속도/중력/회전 적용)
+      p.vy += (p.gravity || 1150) * dt;
+      p.vx *= (1 - 1.1 * dt); p.vy *= (1 - 0.25 * dt);
+      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+
+      fxCtx.save();
+      fxCtx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      fxCtx.translate(p.x, p.y);
+      fxCtx.rotate(p.rot);
+      const s = p.size * (1 + 0.25 * Math.sin(Math.PI * k));
+      fxCtx.drawImage(p.img, -s/2, -s/2, s, s);
+      fxCtx.restore();
+    }
   }
   if (parts.length) requestAnimationFrame(stepFx);
   else { fxRunning = false; fxCtx.clearRect(0, 0, fx.width, fx.height); }
