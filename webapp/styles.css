@@ -380,6 +380,36 @@ dialog { max-width: none; }
   .wide-button { padding-inline: 8px; font-size: var(--t-body-s); }
 }
 
+/* 계획 A5 — OS·브라우저에 고대비를 켜 둔 사용자에게 한 단계 더 진한 벌을 준다.
+   토큰 값과 경계 두께만 바꾸고 레이아웃 수치(버튼 높이·블록 크기·간격)는 건드리지 않는다.
+   여기서 크기가 달라지면 같은 앱인데 조작 감각이 달라진다.
+   이 :root는 scripts/check-contrast.mjs가 기본값과 따로 떼어 별도로 검사한다. */
+@media (prefers-contrast: more) {
+  :root {
+    --ink-soft:      #574e44;
+    --ink-faint:     #6b6154;
+    --ink-disabled:  #574e44;
+    --line:          #c9b9a4;
+    --line-strong:   #a4906f;
+    --btn-edge:      #6d5e45;
+    --board-edge:    #6b5133;
+    --carrot-deep:   #a33509;
+    --carrot-lip:    #662106;
+    --focus:         #14509f;
+    --success:       #145c3f;
+    --danger:        #98211f;
+    --reward-lip:    #8a6103;
+  }
+  .board { border-width: 5px; }
+  .tile::after { border-width: 4px; }
+  .icon-button, .wide-button, .flat-button { border-width: 3px; }
+  .choice-card { border-width: 4px; }
+  #cropCanvas { border-width: 4px; }
+  /* 플랫한 모달이라 바깥 경계가 배경뿐이다. 고대비에서는 테두리를 준다. */
+  .settings-dialog, .confirm-dialog { border: 3px solid var(--line-strong); }
+  .step-progress { background: var(--line-strong); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   /* §8 — 모션을 줄여도 "눌렸다"는 피드백까지 없애면 안 된다.

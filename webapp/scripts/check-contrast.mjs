@@ -82,6 +82,26 @@ export function readTokens(css) {
   return tokens;
 }
 
+const stripComments = (css) => css.replaceAll(/\/\*[\s\S]*?\*\//g, '');
+
+// @media (prefers-contrast: more) 안의 :root는 고대비 변형이다(계획 A5).
+// 그냥 두면 readTokens가 두 벌을 한 Map에 합쳐 뒤에 오는 고대비 값이 기본값을 덮어쓰고,
+// 검사기가 정작 대부분의 사용자가 보는 기본 화면을 전혀 보지 않게 된다. 떼어서 각각 검사한다.
+export function splitContrastVariant(css) {
+  const opener = /@media\s*\(\s*prefers-contrast:\s*more\s*\)\s*\{/.exec(css);
+  if (!opener) return { base: css, contrast: null };
+  const start = opener.index + opener[0].length;
+  let depth = 1;
+  let index = start;
+  while (index < css.length && depth > 0) {
+    if (css[index] === '{') depth += 1;
+    else if (css[index] === '}') depth -= 1;
+    index += 1;
+  }
+  if (depth !== 0) throw new Error('prefers-contrast 블록의 중괄호가 닫히지 않았습니다.');
+  return { base: css.slice(0, opener.index) + css.slice(index), contrast: css.slice(start, index - 1) };
+}
+
 // custom-blocks.js의 DEFAULT_BLOCKS에서 [면, 립] 색 쌍을 순서대로 읽는다.
 export function readBlockPalette(source) {
   const list = source.match(/DEFAULT_BLOCKS\s*=\s*\[([\s\S]*?)\n\];/)?.[1];
@@ -96,29 +116,39 @@ function resolve1(reference, tokens) {
 }
 
 export async function checkContrast() {
-  const css = await readFile(resolve(root, 'styles.css'), 'utf8');
+  const raw = await readFile(resolve(root, 'styles.css'), 'utf8');
   const blocksSource = await readFile(resolve(root, 'src/custom-blocks.js'), 'utf8');
-  const tokens = readTokens(css);
+  const { base, contrast: contrastCss } = splitContrastVariant(stripComments(raw));
+  const tokens = readTokens(base);
   const failures = [];
   const missing = new Set();
 
   const line = (label, value, min, ok) =>
     `  ${ok ? '통과' : '실패'}  ${label.padEnd(30, ' ')} ${value.toFixed(2).padStart(6)} : 1  (기준 ${min})`;
 
-  console.log('\n토큰 조합');
-  for (const [label, fg, bg, kind] of PAIRS) {
-    const front = resolve1(fg, tokens);
-    const back = resolve1(bg, tokens);
-    if (!front || !back) {
-      for (const reference of [fg, bg]) if (!resolve1(reference, tokens)) missing.add(reference);
-      console.log(`  건너뜀  ${label.padEnd(30, ' ')} 토큰 미정의`);
-      continue;
+  // 고대비 변형은 기본 토큰 위에 덮어쓴 것이라, 겹치지 않는 토큰은 기본값을 그대로 쓴다.
+  const variants = [['토큰 조합', tokens]];
+  if (contrastCss) {
+    const overrides = readTokens(contrastCss);
+    variants.push([`고대비 변형 (prefers-contrast: more) — 재정의 ${overrides.size}개`, new Map([...tokens, ...overrides])]);
+  }
+
+  for (const [heading, set] of variants) {
+    console.log(`\n${heading}`);
+    for (const [label, fg, bg, kind] of PAIRS) {
+      const front = resolve1(fg, set);
+      const back = resolve1(bg, set);
+      if (!front || !back) {
+        for (const reference of [fg, bg]) if (!resolve1(reference, set)) missing.add(reference);
+        console.log(`  건너뜀  ${label.padEnd(30, ' ')} 토큰 미정의`);
+        continue;
+      }
+      const min = kind === 'text' ? TEXT_MIN : UI_MIN;
+      const value = contrast(front, back);
+      const ok = value >= min;
+      if (!ok) failures.push(`[${heading.split(' —')[0]}] ${label}: ${value.toFixed(2)}:1 (기준 ${min}:1)`);
+      console.log(line(label, value, min, ok));
     }
-    const min = kind === 'text' ? TEXT_MIN : UI_MIN;
-    const value = contrast(front, back);
-    const ok = value >= min;
-    if (!ok) failures.push(`${label}: ${value.toFixed(2)}:1 (기준 ${min}:1)`);
-    console.log(line(label, value, min, ok));
   }
 
   const carrot = resolve1(MUST_STAY_LOW[2], tokens);

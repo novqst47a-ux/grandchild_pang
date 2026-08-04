@@ -35,6 +35,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const LOW_MOVES = 3; // 이 아래로 남으면 남은 이동 카드를 경고 상태로 (DESIGN §5.2)
 const TOAST_MS = 2500; // DESIGN §9
 const DROP_MS = 400; // .tile.spawned의 --m-slow와 맞춘다. 짧으면 낙하 중에 DOM이 갈린다
+const SCORE_COUNT_MS = 400; // §8 --m-slow — 점수 카운트업
 const STORAGE_WAIT_MS = 2500; // 저장소를 이만큼 기다렸다가, 늦으면 기본 블록으로 먼저 시작한다
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -89,8 +90,37 @@ function toast(text, tone = '') {
   toastTimer = setTimeout(() => element.classList.remove('show'), TOAST_MS);
 }
 
+// §8 — --m-slow의 용도 중 하나가 점수 카운트업이다. 숫자가 순간이동하면 몇 점이 올랐는지
+// 알아채기 어렵다. 400ms 동안 올라가며 눈이 따라가게 한다(계획 A4).
+// 연쇄 중에는 이 함수가 연달아 불리므로, 진행 중이던 것을 접고 지금 보이는 값에서 이어 간다.
+let scoreFrame = 0;
+let shownScore = 0;
+
+function paintScore(value) {
+  shownScore = value;
+  scoreValue.textContent = value.toLocaleString('ko-KR');
+}
+
+function animateScore(target) {
+  cancelAnimationFrame(scoreFrame);
+  // 새 게임(0으로 되돌리기)까지 굴려서 내리면 점수를 잃은 것처럼 보인다. 내려갈 때는 즉시.
+  if (target <= shownScore || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    paintScore(target);
+    return;
+  }
+  const from = shownScore;
+  const start = performance.now();
+  const step = (now) => {
+    const progress = Math.min(1, (now - start) / SCORE_COUNT_MS);
+    const eased = 1 - (1 - progress) ** 3; // 처음엔 빠르게, 끝에서 천천히 멈춘다
+    paintScore(Math.round(from + (target - from) * eased));
+    if (progress < 1) scoreFrame = requestAnimationFrame(step);
+  };
+  scoreFrame = requestAnimationFrame(step);
+}
+
 function updateStats() {
-  scoreValue.textContent = score.toLocaleString('ko-KR');
+  animateScore(score);
   movesValue.textContent = String(moves);
   const low = !gameOver && moves <= LOW_MOVES;
   movesCard.classList.toggle('low', low);
