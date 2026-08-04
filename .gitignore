@@ -12,3 +12,9 @@ desktop.ini
 # 디자인 원본과 개인 도구 설정
 /img_original/
 /.claude/settings.local.json
+
+# 기획·디자인 문서와 개발 메모. 저장소에서 내리고 각자 기기에만 둔다.
+# 지난 내용은 지워지지 않고 이 커밋 이전 이력에 그대로 남아 있다.
+# 공개 저장소에 두는 문서는 루트 README.md(게임 소개·조작 방법) 하나뿐이다.
+/docs/
+/webapp/README.md
