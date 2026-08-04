@@ -138,6 +138,8 @@ webapp/
 │  ├─ app.js           # UI·입력·게임 진행
 │  ├─ game-core.js     # 순수 매치3 로직 (테스트 대상)
 │  ├─ custom-blocks.js # 사진 합성·SVG 프레임·기본 블록 렌더
+│  ├─ praise-settings.js # 칭찬 효과 설정값·개수 규칙 (테스트 대상)
+│  ├─ praise-fx.js     # 칭찬 파티클 (하트 마스킹·폭죽·캔버스 애니메이션)
 │  └─ storage.js       # IndexedDB 저장
 ├─ scripts/
 │  ├─ serve.mjs        # 개발용 정적 서버 (의존성 없음)

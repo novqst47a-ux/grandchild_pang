@@ -108,9 +108,33 @@
             <button class="flat-button danger wide" id="resetCustomBlocksButton" type="button">모두 처음으로 되돌리기</button>
             <p class="privacy-note" id="storageStatus">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요</p>
 
+            <!-- 기획 §3 칭찬 효과. 저장 키는 praiseEffectEnabled / praiseParticleType /
+                 fireworksEnabled 지만, 화면 문구는 DESIGN §7에 맞춰 쉬운 말로 쓴다. -->
             <h3 class="more-title">칭찬 효과</h3>
-            <p class="more-note">나중에 더 재미있는 효과를 넣을 자리예요</p>
-            <button class="disabled-preview" type="button" disabled>효과 설정 — 준비 중</button>
+            <p class="more-note">사진 블록을 맞추면 사진이 팡 하고 떠올라요</p>
+            <div class="option-row">
+              <span class="option-label" id="praiseEffectLabel">칭찬 효과 보이기</span>
+              <button class="toggle" id="praiseEffectToggle" type="button" role="switch" aria-checked="true" aria-labelledby="praiseEffectLabel">
+                <span aria-hidden="true" class="toggle-dot"></span><span class="toggle-state">켜짐</span>
+              </button>
+            </div>
+            <div class="option-block" id="praiseTypeBlock">
+              <span class="option-label" id="praiseTypeLabel">떠오르는 모양</span>
+              <div class="choice-grid two" id="praiseTypeGroup" role="radiogroup" aria-labelledby="praiseTypeLabel">
+                <button class="choice-card" type="button" role="radio" data-value="HEART_CROP" aria-checked="true">
+                  <span aria-hidden="true" class="choice-glyph">♥</span><span>하트 사진</span>
+                </button>
+                <button class="choice-card" type="button" role="radio" data-value="BLOCK_SHAPE" aria-checked="false">
+                  <span aria-hidden="true" class="choice-glyph">▣</span><span>블록 모양</span>
+                </button>
+              </div>
+            </div>
+            <div class="option-row" id="fireworksRow">
+              <span class="option-label" id="fireworksLabel">반짝이 폭죽</span>
+              <button class="toggle" id="fireworksToggle" type="button" role="switch" aria-checked="true" aria-labelledby="fireworksLabel">
+                <span aria-hidden="true" class="toggle-dot"></span><span class="toggle-state">켜짐</span>
+              </button>
+            </div>
           </div>
         </details>
       </section>
@@ -140,6 +164,13 @@
           <canvas id="cropCanvas" width="360" height="360" aria-label="사진 맞추기 미리보기"></canvas>
         </div>
         <p class="crop-guide">두 손가락으로 크기를 바꾸거나, 아래 막대를 움직여 보세요</p>
+
+        <!-- 사진 방향 맞추기. 옆으로 누워 들어온 사진을 이 자리에서 바로 세운다. -->
+        <div class="button-row">
+          <button class="flat-button" id="turnLeftButton" type="button"><span aria-hidden="true">↺</span> 왼쪽으로</button>
+          <button class="flat-button" id="turnRightButton" type="button"><span aria-hidden="true">↻</span> 오른쪽으로</button>
+          <button class="flat-button" id="flipPhotoButton" type="button" aria-pressed="false"><span aria-hidden="true">⇄</span> 좌우 뒤집기</button>
+        </div>
 
         <div class="slider-block">
           <label for="zoomRange">사진 크기 <output id="zoomOutput" for="zoomRange">100%</output></label>
