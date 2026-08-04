@@ -30,6 +30,10 @@ const PAIRS = [
   ['브랜드 글자 / 옅은 강조 면', '--carrot-deep', '--carrot-tint', 'text'],
   ['위험 글자 / 위험 옅은 면', '--danger', '--danger-tint', 'text'],
   ['비활성 라벨 / 비활성 면', '--ink-disabled', '--surface-warm', 'text'],
+  // §6.3 비활성 주요 버튼. WCAG는 비활성 컨트롤을 면제하지만, 저시력 어르신에게
+  // "지금은 누를 수 없다"를 알리는 라벨 자체가 읽히지 않으면 화면이 멈춘 것처럼 보인다.
+  ['비활성 주요 버튼 라벨 / 버튼 면', '--ink-disabled', '--surface-mute', 'text'],
+  ['모달 본문 글자 / 모달 바닥', '--ink', '--surface', 'text'],
 
   // 구조 경계 (계획 문서 §5.1)
   ['게임판 외곽선 / 게임판 바닥', '--board-edge', '--board', 'ui'],

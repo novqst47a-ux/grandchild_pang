@@ -9,6 +9,7 @@
   --surface-warm:  #fff3e9;  /* 선택된 항목, 안내 박스 */
   --line:          #eadfd2;  /* 기본 테두리 (모달 내부 — 조용한 면 위) */
   --line-strong:   #d8c9b8;  /* 강조 테두리 */
+  --surface-mute:  #f0e9e1;  /* §6.3 비활성 주요 버튼 면, 플랫 버튼 누름 상태 */
   /* 게임 영역 흰 버튼의 테두리·립. DESIGN §5.1/§5.5의 --line-strong은 캔버스 위에서
      1.55:1이라 "눌리는 면"이 보이지 않는다. 계획 §5.5 보정값 — 캔버스 대비 3.42:1 */
   --btn-edge:      #96856f;
@@ -17,7 +18,10 @@
   --ink:           #2b2621;  /* 본문·제목. 순검정 금지 */
   --ink-soft:      #6e6459;  /* 보조 설명 */
   --ink-faint:     #9c9084;  /* 플레이스홀더, 장식 */
-  --ink-disabled:  #756a5e;  /* 비활성 라벨. 계획 §5.4 보정값 */
+  /* 비활성 라벨. 계획 §5.4는 --surface-warm 기준으로 #756a5e를 잡았는데,
+     §6.3의 비활성 주요 버튼 면(--surface-mute) 위에서는 4.38:1로 미달이라 한 단계 더 낮췄다.
+     두 면 모두에서 4.79:1 이상이다. */
+  --ink-disabled:  #6f6458;
 
   /* §1.1 브랜드 */
   --carrot:        #ff6f0f;  /* 비텍스트 전용: 아이콘, 진행바, 좌측 바 */
@@ -92,7 +96,7 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
   padding: max(12px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
 }
 
-.topbar, .scoreboard, .help-row, .dialog-header, .dialog-footer, .photo-actions, .preset-actions, .apply-row, .confirm-actions {
+.topbar, .scoreboard, .help-row, .dialog-header, .button-row, .slider-row, .confirm-actions {
   display: flex;
   align-items: center;
 }
@@ -202,65 +206,122 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
 .overlay-card p strong { display: block; color: var(--carrot-deep); font-size: var(--t-display); font-variant-numeric: tabular-nums; }
 
 .help-row { gap: 12px; justify-content: center; margin-top: 18px; }
-.wide-button, .action-button, .secondary-button, .primary-button, .danger-button, .disabled-preview { min-height: 64px; padding: 12px 18px; border-radius: var(--r-md); font-size: var(--t-button); font-weight: 900; cursor: pointer; }
+/* 게임 영역 버튼 — 립 있음(§4 L2~L3). .primary-button은 게임 종료 오버레이 전용이다.
+   모달이 이 클래스를 함께 쓰면 "게임=입체 / 모달=플랫" 대비가 무너진다. */
+.wide-button, .primary-button { min-height: 64px; padding: 12px 18px; border-radius: var(--r-md); font-size: var(--t-button); font-weight: 900; cursor: pointer; }
 .wide-button { flex: 1; max-width: 260px; color: var(--ink); background: var(--surface); border: 2px solid var(--btn-edge); box-shadow: 0 5px 0 var(--btn-edge); }
 .primary-button { color: white; background: var(--carrot-deep); border: 3px solid var(--carrot-lip); box-shadow: 0 5px 0 var(--carrot-lip); }
-.secondary-button, .action-button { color: var(--ink); background: var(--surface); border: 2px solid var(--line); box-shadow: 0 4px 0 var(--line-strong); }
-.danger-button { width: 100%; margin-top: 12px; color: var(--danger); background: var(--danger-tint); border: 2px solid var(--danger); box-shadow: 0 4px 0 var(--danger-lip); }
-.action-button.subtle { color: var(--carrot-deep); background: var(--carrot-tint); border-color: var(--carrot); box-shadow: 0 4px 0 var(--carrot); }
-button:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
+/* 내려앉는 반응은 립이 있는 버튼에만. 전역 button:active로 두면 모달 버튼까지 튄다. */
+.wide-button:active:not(:disabled), .primary-button:active:not(:disabled), .icon-button:active:not(:disabled) { transform: translateY(3px); box-shadow: none; }
 
+/* ── 꾸미기 모달 (§6) ── 립·bounce 없음. 구분은 테두리와 여백으로만 한다. */
 dialog { max-width: none; }
-.settings-dialog { width: min(100% - 20px, 720px); max-height: calc(100dvh - 20px); padding: 0; color: var(--ink); background: var(--canvas); border: 3px solid var(--line-strong); border-radius: 24px; box-shadow: 0 20px 80px rgba(43, 38, 33, .5); }
+.settings-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(100% - 20px, 640px);
+  max-height: calc(100dvh - 20px);
+  padding: 0;
+  color: var(--ink);
+  background: var(--surface); /* §6.2 — 크림 게임 화면과 대비되어 "설정 모드"임을 알린다 */
+  border: 0;
+  border-radius: var(--r-xl);
+  box-shadow: 0 20px 80px rgba(43, 38, 33, .5);
+}
+/* display:flex가 [open] 없는 다이얼로그의 기본 display:none을 덮어쓴다. 없으면 항상 열려 보인다. */
+.settings-dialog:not([open]), .confirm-dialog:not([open]) { display: none; }
 .settings-dialog::backdrop, .confirm-dialog::backdrop { background: rgba(43, 38, 33, .5); backdrop-filter: blur(3px); }
-.dialog-header { position: sticky; top: 0; z-index: 3; justify-content: space-between; min-height: 88px; padding: 15px 18px; background: var(--canvas); border-bottom: 2px solid var(--line); }
-.dialog-header h2 { margin: 0; font-size: var(--t-title); line-height: 1.1; }
-.eyebrow { color: var(--carrot-deep); font-size: var(--t-caption); font-weight: 900; }
-.close-button { width: 55px; height: 55px; color: var(--ink); background: var(--surface); border: 2px solid var(--line); border-radius: 50%; font-size: 1.842rem; line-height: 1; }
-.settings-body { padding: 16px; overflow-y: auto; }
-.settings-section { margin-bottom: 16px; padding: 17px; background: var(--surface); border: 2px solid var(--line); border-radius: 20px; }
-.section-title { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
-.section-title h3 { margin: 0; font-size: var(--t-section); }
-.section-title p { margin: 1px 0 0; color: var(--ink-soft); font-size: var(--t-body-s); }
-.step { flex: 0 0 36px; display: grid; place-items: center; width: 36px; height: 36px; color: #fff; background: var(--carrot-deep); border-radius: 12px; font-weight: 900; }
-.step.future { background: var(--ink-soft); }
 
-.slot-list, .frame-list { display: flex; gap: 9px; padding: 4px 2px 10px; overflow-x: auto; scrollbar-width: thin; }
-.slot-choice, .frame-choice { flex: 0 0 auto; padding: 5px; background: var(--surface-warm); border: 3px solid transparent; border-radius: 15px; }
-.slot-choice { width: 82px; }
-.slot-choice img, .frame-choice canvas { display: block; width: 66px; height: 66px; border-radius: 12px; }
-.slot-choice span, .frame-choice span { display: block; margin-top: 4px; font-size: var(--t-caption); font-weight: 800; }
-.slot-choice[aria-checked="true"], .frame-choice[aria-checked="true"] { background: var(--focus-tint); border-color: var(--focus); }
-.slot-choice[aria-checked="true"]::after { content: "선택됨"; display: block; color: var(--focus); font-size: var(--t-caption); font-weight: 900; }
-.frame-choice { width: 88px; }
-.frame-choice canvas { margin: auto; }
+.dialog-header { gap: 8px; padding: 12px 14px; background: var(--surface); }
+.dialog-heading { flex: 1; min-width: 0; }
+.step-count { display: block; color: var(--carrot-deep); font-size: var(--t-caption); font-weight: 900; font-variant-numeric: tabular-nums; }
+.dialog-header h2 { margin: 0; font-size: var(--t-title); line-height: 1.2; }
+.dialog-nav { flex: 0 0 56px; width: 56px; height: 56px; color: var(--ink); background: var(--surface-warm); border: 0; border-radius: 50%; font-size: 1.842rem; line-height: 1; cursor: pointer; }
+/* 스텝 1에서도 자리는 남겨 둔다. 자리를 없애면 제목이 스텝마다 좌우로 흔들린다. */
+.dialog-nav[hidden] { display: block; visibility: hidden; }
 
-.photo-actions, .preset-actions, .apply-row { gap: 10px; flex-wrap: wrap; }
-.photo-actions .action-button { flex: 1; min-width: 125px; }
-.crop-layout { display: grid; grid-template-columns: minmax(220px, 360px) 1fr; gap: 18px; align-items: center; margin-top: 12px; }
-.crop-stage { position: relative; }
-#cropCanvas { display: block; width: 100%; aspect-ratio: 1; background: repeating-conic-gradient(var(--line) 0 25%, var(--surface-warm) 0 50%) 0 0/22px 22px; border: 3px solid var(--line-strong); border-radius: 18px; touch-action: none; cursor: grab; }
-#cropHint { position: absolute; left: 8px; right: 8px; bottom: 10px; padding: 5px 10px; color: #fff; background: rgba(43, 38, 33, .72); border-radius: 14px; font-size: var(--t-body-s); text-align: center; pointer-events: none; }
-.crop-controls label { display: flex; justify-content: space-between; margin-top: 8px; font-size: var(--t-caption); font-weight: 800; }
-.crop-controls output { color: var(--carrot-deep); }
-.crop-controls input[type="range"] { width: 100%; height: 44px; accent-color: var(--carrot-deep); }
-.crop-controls .action-button { width: 100%; margin-top: 8px; }
-.apply-row { justify-content: flex-end; margin-top: 15px; }
-.apply-row button { flex: 1; }
-.preset-actions .action-button { flex: 1; }
-.privacy-note { margin: 10px 0 0; padding: 10px; color: var(--ink); background: var(--carrot-tint); border-left: 5px solid var(--carrot); border-radius: 8px; font-size: var(--t-body-s); }
-.future-section { opacity: .72; background: var(--surface-warm); }
-.disabled-preview { width: 100%; color: var(--ink-disabled); background: var(--surface-warm); border: 2px dashed var(--line-strong); cursor: not-allowed; }
-.dialog-footer { position: sticky; bottom: 0; z-index: 3; justify-content: flex-end; padding: 13px 18px max(13px, env(safe-area-inset-bottom)); background: var(--canvas); border-top: 2px solid var(--line); }
-.dialog-footer .primary-button { width: min(100%, 300px); }
+.step-progress { height: 4px; background: var(--line); }
+.step-progress-fill { display: block; width: 33%; height: 100%; background: var(--carrot); transition: width var(--m-base) var(--e-standard); }
 
-.confirm-dialog { width: min(100% - 28px, 440px); padding: 0; border: 0; border-radius: 24px; background: var(--surface); }
+.settings-body { flex: 1; min-height: 0; padding: 20px 20px 24px; overflow-y: auto; }
+/* §8 — 좌우 슬라이드가 아니라 페이드 + 8px 상승. 방향 이동은 되돌아갈 수 있는지를 헷갈리게 한다. */
+.step-panel { display: none; }
+.step-panel.active { display: block; animation: step-in var(--m-base) var(--e-enter); }
+.step-lead { margin: 0 0 14px; color: var(--ink-soft); }
+
+/* §6.4 선택 항목 — 가로 스크롤 대신 3열 그리드(§11 Don't).
+   문서는 카드 면을 --surface로 두지만 모달 바닥이 흰색이라 그러면 카드가 보이지 않는다.
+   따뜻한 면 + 3px 테두리로 "누를 수 있는 칸"임을 남긴다. 두께는 선택 여부와 무관하게
+   3px 고정 — 선택할 때 2→3px로 바뀌면 그리드가 1px씩 밀린다. */
+.choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.choice-card { position: relative; display: grid; justify-items: center; align-content: start; gap: 4px; min-height: 96px; padding: 10px 6px; color: var(--ink); background: var(--surface-warm); border: 3px solid var(--line-strong); border-radius: var(--r-md); cursor: pointer; transition: background var(--m-fast) var(--e-standard), border-color var(--m-fast) var(--e-standard); }
+.choice-card img, .choice-card canvas { display: block; width: 66px; height: 66px; border-radius: 12px; }
+.choice-card span { font-size: var(--t-caption); font-weight: 800; }
+.choice-card[aria-checked="true"] { background: var(--focus-tint); border-color: var(--focus); }
+.choice-card[aria-checked="true"]::before { content: "✓"; position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 26px; height: 26px; color: #fff; background: var(--focus); border-radius: 50%; font-size: var(--t-body-s); font-weight: 900; }
+.choice-card[aria-checked="true"]::after { content: "선택됨"; color: var(--focus); font-size: var(--t-caption); font-weight: 900; }
+
+/* §6.3 모달 버튼 — 전부 플랫. 누름 피드백은 이동이 아니라 색으로 준다. */
+.step-button, .flat-button, .disabled-preview { padding: 12px 16px; border-radius: var(--r-md); font-size: var(--t-button); font-weight: 900; cursor: pointer; transition: background var(--m-fast) var(--e-standard); }
+.step-button { width: 100%; min-height: 64px; color: #fff; background: var(--carrot-deep); border: 0; }
+.step-button:disabled { color: var(--ink-disabled); background: var(--surface-mute); cursor: not-allowed; }
+.flat-button { min-height: 56px; color: var(--ink); background: var(--surface); border: 2px solid var(--line-strong); }
+.flat-button.accent { color: var(--carrot-deep); background: var(--carrot-tint); border: 0; }
+.flat-button.danger { color: var(--danger); background: var(--danger-tint); border: 2px solid var(--danger); }
+.flat-button.wide { width: 100%; }
+.step-button:active:not(:disabled) { background: var(--carrot-lip); }
+.flat-button:active:not(:disabled) { background: var(--surface-mute); }
+.flat-button.accent:active:not(:disabled), .flat-button.danger:active:not(:disabled), .stepper:active:not(:disabled) { filter: brightness(.94); }
+.button-row { gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.button-row .flat-button { flex: 1; min-width: 130px; }
+
+/* §6.1 — 매번 보일 필요가 없는 보관·준비 중 항목은 첫 화면 하단 "더 보기" 안으로. */
+.more-panel { margin-top: 16px; background: var(--surface-warm); border-radius: var(--r-md); }
+.more-panel summary { min-height: 56px; padding: 15px 16px; font-size: var(--t-button); font-weight: 900; cursor: pointer; }
+.more-body { padding: 0 16px 16px; }
+.more-title { margin: 14px 0 4px; font-size: var(--t-section); }
+.more-note { margin: 0 0 10px; color: var(--ink-soft); font-size: var(--t-body-s); }
+
+.photo-preview { display: grid; place-items: center; min-height: 210px; margin-bottom: 14px; padding: 12px; background: var(--surface-warm); border-radius: var(--r-lg); }
+.photo-preview canvas { width: min(100%, 186px); height: auto; aspect-ratio: 1; border-radius: var(--r-md); object-fit: cover; }
+.photo-empty { margin: 0; color: var(--ink-soft); text-align: center; }
+
+.crop-stage { max-width: 360px; margin: 0 auto; }
+#cropCanvas { display: block; width: 100%; aspect-ratio: 1; background: repeating-conic-gradient(var(--line) 0 25%, var(--surface-warm) 0 50%) 0 0/22px 22px; border: 3px solid var(--line-strong); border-radius: var(--r-lg); touch-action: none; cursor: grab; }
+/* §6.5 — 캔버스를 덮는 오버레이 힌트보다 아래에 상시 표시하는 편이 읽힌다. */
+.crop-guide { margin: 10px 0 18px; color: var(--ink-soft); font-size: var(--t-body-s); text-align: center; }
+
+.slider-block { margin-bottom: 16px; }
+.slider-block label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: var(--t-body-s); font-weight: 800; }
+.slider-block output { color: var(--carrot-deep); font-variant-numeric: tabular-nums; }
+.slider-row { gap: 10px; }
+/* §6.5 — 드래그가 어려운 손을 위한 대체 조작. 슬라이더만 두지 않는다. */
+.stepper { flex: 0 0 56px; width: 56px; height: 56px; color: var(--carrot-deep); background: var(--carrot-tint); border: 0; border-radius: var(--r-md); font-size: 1.421rem; font-weight: 900; line-height: 1; cursor: pointer; }
+.slider-row input[type="range"] { flex: 1; min-width: 0; height: 48px; margin: 0; background: transparent; accent-color: var(--carrot-deep); -webkit-appearance: none; appearance: none; }
+.slider-row input[type="range"]::-webkit-slider-runnable-track { height: 12px; background: var(--line-strong); border-radius: var(--r-full); }
+.slider-row input[type="range"]::-webkit-slider-thumb { width: 36px; height: 36px; margin-top: -12px; background: var(--carrot-deep); border: 3px solid var(--surface); border-radius: 50%; -webkit-appearance: none; appearance: none; }
+.slider-row input[type="range"]::-moz-range-track { height: 12px; background: var(--line-strong); border-radius: var(--r-full); }
+.slider-row input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; background: var(--carrot-deep); border: 3px solid var(--surface); border-radius: 50%; }
+
+.done-card { display: grid; justify-items: center; margin-bottom: 16px; padding: 24px 16px; background: var(--success-tint); border-radius: var(--r-lg); text-align: center; }
+.done-card img { width: 120px; height: 120px; border-radius: var(--r-lg); }
+.done-title { margin: 12px 0 4px; font-size: var(--t-section); font-weight: 900; }
+.done-card .step-lead { margin: 0; }
+
+.privacy-note { margin: 10px 0 0; padding: 12px; color: var(--ink); background: var(--carrot-tint); border-left: 5px solid var(--carrot); border-radius: 12px; font-size: var(--t-body-s); }
+.disabled-preview { width: 100%; min-height: 56px; color: var(--ink-disabled); background: var(--surface-warm); border: 2px dashed var(--line-strong); cursor: not-allowed; }
+
+/* §6.3 — 푸터에는 주요 버튼 한 개만. 보조 동작은 본문 안에 둔다. */
+.dialog-footer { padding: 12px 20px max(12px, env(safe-area-inset-bottom)); background: var(--surface); border-top: 2px solid var(--line); }
+.step-note { margin: 0 0 8px; color: var(--ink-soft); font-size: var(--t-body-s); text-align: center; }
+
+.confirm-dialog { width: min(100% - 28px, 440px); padding: 0; border: 0; border-radius: var(--r-xl); background: var(--surface); }
 .confirm-content { padding: 28px; text-align: center; }
 .confirm-icon { display: grid; place-items: center; width: 65px; height: 65px; margin: 0 auto; color: white; background: var(--carrot-deep); border-radius: 50%; font-size: 2rem; }
 .confirm-content h2 { margin: 16px 0 3px; font-size: var(--t-title); }
 .confirm-content p { margin: 0 0 20px; color: var(--ink-soft); }
 .confirm-actions { gap: 10px; }
-.confirm-actions button { flex: 1; }
+.confirm-actions button { flex: 1; width: auto; }
 
 .toast { position: fixed; z-index: 100; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); width: max-content; max-width: calc(100% - 28px); padding: 12px 19px; color: white; background: rgba(43, 38, 33, .93); border: 2px solid white; border-radius: var(--r-full); font-size: var(--t-body); font-weight: 800; opacity: 0; transform: translate(-50%, 20px); transition: .2s ease; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -273,6 +334,7 @@ dialog { max-width: none; }
 @keyframes drop-in { from { transform: translateY(-45px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes no-shake { 25%, 75% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
 @keyframes drag-lift { from { opacity: .6; transform: translate(-50%, -60%) scale(.85); } }
+@keyframes step-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes celebration-pop {
   0% { opacity: 0; transform: scale(.45) rotate(-6deg); }
   24% { opacity: 1; transform: scale(1.08) rotate(2deg); }
@@ -293,9 +355,13 @@ dialog { max-width: none; }
   .score-card { flex-basis: 82px; min-height: 72px; border-radius: 15px; }
   .score-card strong { font-size: 1.5rem; }
   .board { border-width: 3px; padding: 6px; }
-  .crop-layout { grid-template-columns: 1fr; }
-  .crop-stage { max-width: 360px; margin: auto; }
-  .dialog-footer .primary-button { width: 100%; }
+  /* §6.2 / §10 — 좁은 화면에서 모달은 전체 화면 시트. 상단만 둥글린다. */
+  .settings-dialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+  .dialog-header h2 { font-size: 1.368rem; } /* 26px 상당. §2.2 — 이보다 줄이지 않는다 */
+  .settings-body { padding: 16px 14px 20px; }
+  .dialog-footer { padding-inline: 14px; }
+  .choice-grid { gap: 10px; }
+  .choice-card { padding: 8px 4px; }
 }
 
 @media (max-width: 370px) {

@@ -66,95 +66,125 @@
     <p class="sr-only" id="liveStatus" aria-live="polite"></p>
   </main>
 
+  <!-- 꾸미기 모달. DESIGN §6 — 한 번에 한 스텝, 립 없는 플랫 면, 하단 고정 버튼 1개.
+       form method="dialog"를 쓰지 않는다. 그 안의 버튼은 전부 모달을 닫아 버려
+       스텝 이동 버튼을 둘 수 없다. 닫기는 JS에서 명시적으로 close()한다. -->
   <dialog class="settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
-    <form method="dialog" class="dialog-header">
-      <div>
-        <span class="eyebrow">내 사진으로 만드는</span>
-        <h2 id="settingsTitle">블록 꾸미기</h2>
+    <div class="dialog-header">
+      <button class="dialog-nav" id="stepBackButton" type="button" aria-label="앞 단계로 돌아가기">
+        <span aria-hidden="true">←</span>
+      </button>
+      <div class="dialog-heading">
+        <span class="step-count" id="stepCount">1 / 3</span>
+        <h2 id="settingsTitle">어떤 블록을 바꿀까요?</h2>
       </div>
-      <button class="close-button" value="close" aria-label="꾸미기 닫기">×</button>
-    </form>
+      <button class="dialog-nav" id="closeSettingsButton" type="button" aria-label="꾸미기 닫기">
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
 
-    <div class="settings-body">
-      <section class="settings-section">
-        <div class="section-title">
-          <span class="step">1</span>
-          <div><h3>바꿀 블록 선택</h3><p>다섯 종류를 각각 꾸밀 수 있어요.</p></div>
-        </div>
-        <div class="slot-list" id="slotList" role="radiogroup" aria-label="바꿀 블록"></div>
+    <div class="step-progress" id="stepProgress" role="progressbar" aria-label="꾸미기 진행" aria-valuemin="1" aria-valuemax="3" aria-valuenow="1">
+      <span class="step-progress-fill" id="stepProgressFill"></span>
+    </div>
+
+    <div class="settings-body" id="settingsBody">
+      <section class="step-panel" data-step="1" aria-label="바꿀 블록 고르기">
+        <p class="step-lead">바꾸고 싶은 블록을 눌러 보세요.</p>
+        <div class="choice-grid" id="slotList" role="radiogroup" aria-label="바꿀 블록 자리"></div>
+        <button class="flat-button wide" id="restoreSlotButton" type="button" hidden>그림 블록으로 되돌리기</button>
+
+        <details class="more-panel">
+          <summary>더 보기</summary>
+          <div class="more-body">
+            <h3 class="more-title">꾸민 모습 보관</h3>
+            <p class="more-note">파일로 내보내 두면 다른 기기에서도 같은 모습으로 꾸밀 수 있어요.</p>
+            <div class="button-row">
+              <button class="flat-button" id="exportPresetButton" type="button">꾸민 모습 저장</button>
+              <button class="flat-button" id="importPresetButton" type="button">꾸민 모습 불러오기</button>
+              <input class="sr-only" id="presetInput" type="file" accept="application/json,.json">
+            </div>
+            <button class="flat-button danger wide" id="resetCustomBlocksButton" type="button">모두 처음으로 되돌리기</button>
+            <p class="privacy-note" id="storageStatus">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요.</p>
+
+            <h3 class="more-title">칭찬 효과</h3>
+            <p class="more-note">나중에 더 재미있는 효과를 넣을 자리예요.</p>
+            <button class="disabled-preview" type="button" disabled>효과 설정 — 준비 중</button>
+          </div>
+        </details>
       </section>
 
-      <section class="settings-section">
-        <div class="section-title">
-          <span class="step">2</span>
-          <div><h3>사진과 모양 선택</h3><p>사진은 서버로 전송되지 않아요.</p></div>
-        </div>
-        <div class="photo-actions">
-          <button class="action-button" id="cameraButton" type="button"><span aria-hidden="true">📷</span> 카메라</button>
-          <button class="action-button" id="galleryButton" type="button"><span aria-hidden="true">▣</span> 사진 선택</button>
-          <button class="action-button subtle" id="sampleButton" type="button">샘플 사진</button>
+      <section class="step-panel" data-step="2" aria-label="사진 고르기">
+        <p class="step-lead">카메라로 찍거나, 기기에 있는 사진을 골라 보세요.</p>
+        <div class="button-row">
+          <button class="flat-button" id="cameraButton" type="button"><span aria-hidden="true">📷</span> 카메라</button>
+          <button class="flat-button" id="galleryButton" type="button"><span aria-hidden="true">▣</span> 사진 선택</button>
+          <button class="flat-button accent" id="sampleButton" type="button">샘플 사진</button>
         </div>
         <input class="sr-only" id="cameraInput" type="file" accept="image/*" capture="environment">
         <input class="sr-only" id="galleryInput" type="file" accept="image/*">
 
-        <div class="frame-list" id="frameList" role="radiogroup" aria-label="사진 프레임"></div>
+        <div class="photo-preview">
+          <canvas id="photoPreviewCanvas" width="256" height="256" aria-hidden="true" hidden></canvas>
+          <p class="photo-empty" id="photoEmpty">아직 사진이 없어요. 카메라로 찍어 볼까요?</p>
+        </div>
+        <p class="privacy-note">사진은 이 기기에만 저장돼요. 인터넷으로 보내지 않아요.</p>
+      </section>
 
-        <div class="crop-layout">
-          <div class="crop-stage">
-            <canvas id="cropCanvas" width="360" height="360" aria-label="사진 자르기 미리보기"></canvas>
-            <span id="cropHint">사진을 먼저 선택하세요</span>
-          </div>
-          <div class="crop-controls">
-            <label for="zoomRange">사진 크기 <output id="zoomOutput">100%</output></label>
+      <section class="step-panel" data-step="3" aria-label="사진 맞추기">
+        <p class="step-lead">모양을 고르고, 사진 위치를 맞춰 보세요.</p>
+        <div class="choice-grid" id="frameList" role="radiogroup" aria-label="사진 모양"></div>
+
+        <div class="crop-stage">
+          <canvas id="cropCanvas" width="360" height="360" aria-label="사진 맞추기 미리보기"></canvas>
+        </div>
+        <p class="crop-guide">두 손가락으로 크기를 바꾸거나, 아래 막대를 움직여 보세요</p>
+
+        <div class="slider-block">
+          <label for="zoomRange">사진 크기 <output id="zoomOutput" for="zoomRange">100%</output></label>
+          <div class="slider-row">
+            <button class="stepper" type="button" data-range="zoomRange" data-delta="-10" aria-label="사진 크기 줄이기">−</button>
             <input id="zoomRange" type="range" min="70" max="500" value="100">
-            <label for="holeRange">사진 영역 <output id="holeOutput">82%</output></label>
-            <input id="holeRange" type="range" min="62" max="96" value="82">
-            <button class="action-button subtle" id="resetCropButton" type="button">위치 초기화</button>
+            <button class="stepper" type="button" data-range="zoomRange" data-delta="10" aria-label="사진 크기 키우기">＋</button>
           </div>
         </div>
 
-        <div class="apply-row">
-          <button class="secondary-button" id="restoreSlotButton" type="button">기본 블록으로</button>
-          <button class="primary-button" id="applyBlockButton" type="button" disabled>이 블록에 적용</button>
+        <div class="slider-block">
+          <label for="holeRange">사진이 보이는 크기 <output id="holeOutput" for="holeRange">82%</output></label>
+          <div class="slider-row">
+            <button class="stepper" type="button" data-range="holeRange" data-delta="-2" aria-label="사진이 보이는 크기 줄이기">−</button>
+            <input id="holeRange" type="range" min="62" max="96" value="82">
+            <button class="stepper" type="button" data-range="holeRange" data-delta="2" aria-label="사진이 보이는 크기 키우기">＋</button>
+          </div>
         </div>
+
+        <button class="flat-button wide" id="resetCropButton" type="button">가운데로 다시</button>
       </section>
 
-      <section class="settings-section preset-section">
-        <div class="section-title">
-          <span class="step">3</span>
-          <div><h3>프리셋 보관</h3><p>영구 저장 대신 파일로 내보내고 다시 불러와요.</p></div>
+      <section class="step-panel" data-step="done" aria-label="꾸미기 완료">
+        <div class="done-card">
+          <img id="donePreview" alt="" width="120" height="120">
+          <p class="done-title" id="doneMessage">블록이 바뀌었어요</p>
+          <p class="step-lead">게임판에서 바로 볼 수 있어요.</p>
         </div>
-        <div class="preset-actions">
-          <button class="action-button" id="exportPresetButton" type="button">프리셋 저장</button>
-          <button class="action-button" id="importPresetButton" type="button">프리셋 불러오기</button>
-          <input class="sr-only" id="presetInput" type="file" accept="application/json,.json">
-        </div>
-        <button class="danger-button" id="resetCustomBlocksButton" type="button">꾸민 블록 전체 초기화</button>
-        <p class="privacy-note" id="storageStatus">꾸민 블록은 이 기기에 자동 저장되며 직접 초기화하거나 앱 데이터를 지울 때까지 유지됩니다.</p>
-      </section>
-
-      <section class="settings-section future-section" aria-disabled="true">
-        <div class="section-title">
-          <span class="step future">+</span>
-          <div><h3>칭찬 효과</h3><p>파티클 옵션이 들어갈 자리예요. MVP 완성 후 추가합니다.</p></div>
-        </div>
-        <button class="disabled-preview" type="button" disabled>효과 설정 — 준비 중</button>
+        <button class="flat-button wide" id="continueDecorateButton" type="button">계속 꾸미기</button>
       </section>
     </div>
 
-    <form method="dialog" class="dialog-footer">
-      <button class="primary-button" value="close">게임으로 돌아가기</button>
-    </form>
+    <div class="dialog-footer">
+      <p class="step-note" id="stepNote" hidden></p>
+      <button class="step-button" id="stepNextButton" type="button">다음</button>
+    </div>
   </dialog>
 
+  <!-- 확인 다이얼로그. 새 게임·전체 되돌리기가 함께 쓴다(DESIGN §9 — 기본 포커스는 취소). -->
   <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirmTitle">
     <div class="confirm-content">
-      <span aria-hidden="true" class="confirm-icon">↻</span>
+      <span aria-hidden="true" class="confirm-icon" id="confirmIcon">↻</span>
       <h2 id="confirmTitle">새 게임을 시작할까요?</h2>
-      <p>현재 점수와 남은 이동 횟수가 초기화됩니다.</p>
+      <p id="confirmText">지금 점수는 사라지고 처음부터 시작해요.</p>
       <div class="confirm-actions">
-        <button id="cancelNewGameButton" class="secondary-button" type="button">계속하기</button>
-        <button id="confirmNewGameButton" class="primary-button" type="button">새 게임</button>
+        <button id="confirmCancelButton" class="flat-button" type="button">계속하기</button>
+        <button id="confirmOkButton" class="step-button" type="button">새 게임</button>
       </div>
     </div>
   </dialog>

@@ -368,11 +368,51 @@ boardElement.addEventListener('pointerup', (event) => {
 });
 boardElement.addEventListener('pointercancel', () => { finishDrag(); swipeStart = null; });
 
+// 확인 다이얼로그. 네이티브 window.confirm은 문구·색·포커스를 제어할 수 없고
+// WebView에서 시스템 폰트로 튀어나와 톤이 깨진다(DESIGN §9). 두 곳이 이 하나를 나눠 쓴다.
+const confirmDialog = $('#confirmDialog');
+let settleConfirm = null;
+
+// 답이 하나 나오면 끝이다. 두 번 불려도(닫기 버튼 뒤에 close 이벤트가 따라오는 등)
+// 처음 값만 쓰고 나머지는 흘린다.
+function settleConfirmWith(answer) {
+  const resolve = settleConfirm;
+  settleConfirm = null;
+  resolve?.(answer);
+}
+
+function askConfirm({ icon = '↻', title, text, confirmLabel, cancelLabel }) {
+  settleConfirmWith(false); // 앞의 물음이 남아 있으면 취소로 접는다
+  $('#confirmIcon').textContent = icon;
+  $('#confirmTitle').textContent = title;
+  $('#confirmText').textContent = text;
+  $('#confirmOkButton').textContent = confirmLabel;
+  $('#confirmCancelButton').textContent = cancelLabel;
+  confirmDialog.showModal();
+  $('#confirmCancelButton').focus(); // §9 — 기본 포커스는 취소. 연타로 되돌릴 수 없게 되면 안 된다
+  return new Promise((resolve) => { settleConfirm = resolve; });
+}
+
+// 답은 버튼 핸들러에서 바로 정한다. dialog의 close 이벤트에 기대면 그 이벤트를 흘리는
+// WebView에서 물음이 영영 끝나지 않아 되돌리기·새 게임이 조용히 멈춘다.
+// cancel/close는 Esc·백드롭으로 닫힌 경우만 받는 안전망이다.
+$('#confirmCancelButton').addEventListener('click', () => { confirmDialog.close(); settleConfirmWith(false); });
+$('#confirmOkButton').addEventListener('click', () => { confirmDialog.close(); settleConfirmWith(true); });
+confirmDialog.addEventListener('cancel', () => settleConfirmWith(false));
+confirmDialog.addEventListener('close', () => settleConfirmWith(false));
+
 $('#hintButton').addEventListener('click', showHint);
 $('#restartButton').addEventListener('click', startGame);
-$('#newGameButton').addEventListener('click', () => $('#confirmDialog').showModal());
-$('#cancelNewGameButton').addEventListener('click', () => $('#confirmDialog').close());
-$('#confirmNewGameButton').addEventListener('click', () => { $('#confirmDialog').close(); startGame(); });
+$('#newGameButton').addEventListener('click', async () => {
+  const ok = await askConfirm({
+    icon: '↻',
+    title: '새 게임을 시작할까요?',
+    text: '지금 점수는 사라지고 처음부터 시작해요.',
+    confirmLabel: '새 게임',
+    cancelLabel: '계속하기',
+  });
+  if (ok) startGame();
+});
 
 let muted = false;
 let audioContext;
@@ -404,9 +444,17 @@ $('#soundButton').addEventListener('click', () => {
 });
 
 // 커스텀 블록 편집기: 사진은 메모리에만 두고, 사용자가 내보낸 프리셋 파일만 기기에 남긴다.
+// 모달은 한 번에 한 스텝만 보여 준다(DESIGN §6.1). 화면에 무엇이 보이는지는 editorStep 하나로 정해진다.
 const settingsDialog = $('#settingsDialog');
 const cropCanvas = $('#cropCanvas');
 const cropContext = cropCanvas.getContext('2d');
+const STEPS = {
+  1: { title: '어떤 블록을 바꿀까요?', action: '다음' },
+  2: { title: '사진을 골라 주세요', action: '다음' },
+  3: { title: '사진을 맞춰 볼까요?', action: '이 사진으로 할게요' },
+  done: { title: '다 됐어요!', action: '게임으로 돌아가기' },
+};
+let editorStep = 1;
 let editorSlot = 0;
 let editorFrame = FRAMES[0];
 let editorImage = null;
@@ -434,13 +482,13 @@ function renderSlots() {
   const fragment = document.createDocumentFragment();
   DEFAULT_BLOCKS.forEach((block, index) => {
     const button = document.createElement('button');
-    button.type = 'button'; button.className = 'slot-choice'; button.setAttribute('role', 'radio');
+    button.type = 'button'; button.className = 'choice-card'; button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', String(index === editorSlot));
     button.setAttribute('aria-label', `${block.name} 블록${customImages[index] ? ', 사진 적용됨' : ', 기본 블록'}`);
     const image = new Image(); image.src = blockImage(index); image.alt = '';
     const label = document.createElement('span'); label.textContent = block.name;
     button.append(image, label);
-    button.addEventListener('click', () => { editorSlot = index; renderSlots(); renderCrop(); });
+    button.addEventListener('click', () => { editorSlot = index; renderSlots(); renderStep(); });
     fragment.append(button);
   });
   list.replaceChildren(fragment);
@@ -451,8 +499,9 @@ function renderFrames() {
   const fragment = document.createDocumentFragment();
   FRAMES.forEach((frame) => {
     const button = document.createElement('button');
-    button.type = 'button'; button.className = 'frame-choice'; button.setAttribute('role', 'radio');
+    button.type = 'button'; button.className = 'choice-card'; button.setAttribute('role', 'radio');
     button.setAttribute('aria-checked', String(frame.id === editorFrame.id));
+    button.setAttribute('aria-label', `${frame.name} 모양`);
     const canvas = document.createElement('canvas'); drawFramePreview(canvas, frame);
     const label = document.createElement('span'); label.textContent = frame.name;
     button.append(canvas, label);
@@ -466,15 +515,61 @@ function renderCrop() {
   renderCustomBlock(cropContext, cropCanvas.width, { frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, cropGuide: true, slot: editorSlot });
 }
 
+// 스텝 2는 "사진을 골랐다"는 사실만 확인하면 된다. 프레임을 씌우지 않은 원본을 그대로 보여 준다.
+function renderPhotoPreview() {
+  const canvas = $('#photoPreviewCanvas');
+  canvas.hidden = !editorImage;
+  $('#photoEmpty').hidden = Boolean(editorImage);
+  if (!editorImage) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const scale = Math.max(canvas.width / editorImage.width, canvas.height / editorImage.height);
+  const width = editorImage.width * scale;
+  const height = editorImage.height * scale;
+  ctx.drawImage(editorImage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+}
+
+function renderStep() {
+  const step = STEPS[editorStep];
+  const numbered = editorStep === 'done' ? 3 : editorStep;
+  for (const panel of settingsDialog.querySelectorAll('.step-panel')) {
+    panel.classList.toggle('active', panel.dataset.step === String(editorStep));
+  }
+  $('#settingsTitle').textContent = step.title;
+  $('#stepCount').textContent = editorStep === 'done' ? '끝났어요' : `${numbered} / 3`;
+  $('#stepProgress').setAttribute('aria-valuenow', String(numbered));
+  $('#stepProgressFill').style.width = `${Math.round((numbered / 3) * 100)}%`;
+  $('#stepBackButton').hidden = editorStep === 1 || editorStep === 'done';
+
+  // §9 사진 적용 대기 — 버튼을 감추지 않고 비활성 스타일로 두고, 무엇이 필요한지 한 줄로 알린다.
+  const waitingForPhoto = editorStep === 2 && !editorImage;
+  const next = $('#stepNextButton');
+  next.textContent = step.action;
+  next.disabled = waitingForPhoto;
+  $('#stepNote').hidden = !waitingForPhoto;
+  $('#stepNote').textContent = waitingForPhoto ? '사진을 먼저 골라 주세요' : '';
+
+  // 되돌리기는 스텝 1에서, 그 자리에 사진이 들어 있을 때만 보여 준다.
+  $('#restoreSlotButton').hidden = !(editorStep === 1 && customImages[editorSlot]);
+
+  if (editorStep === 2) renderPhotoPreview();
+  if (editorStep === 3) renderCrop();
+}
+
+function goStep(step) {
+  editorStep = step;
+  renderStep();
+  $('#settingsBody').scrollTop = 0;
+}
+
 function setEditorImage(image) {
   if (editorImage && editorImage !== image) editorImage.close?.();
   editorImage = image;
   editorTransform = initialTransform(image);
   $('#zoomRange').value = '100';
   $('#zoomOutput').textContent = '100%';
-  $('#cropHint').textContent = '드래그로 이동 · 두 손가락으로 확대';
-  $('#applyBlockButton').disabled = false;
   renderCrop();
+  renderStep();
 }
 
 async function usePhotoFile(file) {
@@ -487,7 +582,35 @@ async function usePhotoFile(file) {
   }
 }
 
-$('#openSettingsButton').addEventListener('click', () => { renderSlots(); renderFrames(); renderCrop(); settingsDialog.showModal(); });
+async function applyToSlot() {
+  if (!editorImage) return;
+  const slot = editorSlot;
+  customImages[slot] = customBlockDataUrl({ frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, slot });
+  renderSlots();
+  renderBoard();
+  $('#donePreview').src = customImages[slot];
+  $('#doneMessage').textContent = `${DEFAULT_BLOCKS[slot].name} 블록이 바뀌었어요`;
+  goStep('done');
+  try {
+    await persistCustomImages();
+  } catch { toast('블록은 바꿨지만 저장하지 못했어요'); }
+}
+
+$('#openSettingsButton').addEventListener('click', () => {
+  renderSlots();
+  renderFrames();
+  goStep(1); // 모달은 늘 첫 스텝에서 시작한다. 지난번 어디까지 갔는지 기억하면 오히려 헷갈린다
+  settingsDialog.showModal();
+});
+$('#closeSettingsButton').addEventListener('click', () => settingsDialog.close());
+$('#stepBackButton').addEventListener('click', () => { if (editorStep === 3) goStep(2); else if (editorStep === 2) goStep(1); });
+$('#continueDecorateButton').addEventListener('click', () => goStep(1));
+$('#stepNextButton').addEventListener('click', () => {
+  if (editorStep === 1) goStep(2);
+  else if (editorStep === 2) { if (editorImage) goStep(3); }
+  else if (editorStep === 3) applyToSlot();
+  else settingsDialog.close();
+});
 $('#cameraButton').addEventListener('click', () => $('#cameraInput').click());
 $('#galleryButton').addEventListener('click', () => $('#galleryInput').click());
 $('#cameraInput').addEventListener('change', (event) => { usePhotoFile(event.target.files[0]); event.target.value = ''; });
@@ -513,6 +636,17 @@ $('#holeRange').addEventListener('input', (event) => {
   $('#holeOutput').textContent = `${event.target.value}%`;
   renderCrop();
 });
+
+// §6.5 — 손잡이를 끌기 어려운 손을 위한 대체 조작. 값 변경은 위 input 핸들러가 그대로 받는다.
+for (const button of document.querySelectorAll('.stepper')) {
+  button.addEventListener('click', () => {
+    const input = $(`#${button.dataset.range}`);
+    const next = Math.min(Number(input.max), Math.max(Number(input.min), Number(input.value) + Number(button.dataset.delta)));
+    if (String(next) === input.value) return;
+    input.value = String(next);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
 
 const cropPointers = new Map();
 let cropGesture = null;
@@ -551,21 +685,12 @@ for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   cropCanvas.addEventListener(eventName, (event) => { cropPointers.delete(event.pointerId); resetCropGesture(); });
 }
 
-$('#applyBlockButton').addEventListener('click', async () => {
-  if (!editorImage) return;
-  customImages[editorSlot] = customBlockDataUrl({ frame: editorFrame, holeScale, image: editorImage, transform: editorTransform, slot: editorSlot });
-  renderSlots(); renderBoard();
-  try {
-    await persistCustomImages();
-    toast(`${DEFAULT_BLOCKS[editorSlot].name} 블록을 꾸미고 저장했어요`);
-  } catch { toast('블록은 적용했지만 저장하지 못했어요'); }
-});
 $('#restoreSlotButton').addEventListener('click', async () => {
   customImages[editorSlot] = null;
-  renderSlots(); renderBoard();
+  renderSlots(); renderBoard(); renderStep();
   try {
     await persistCustomImages();
-    toast('기본 블록으로 되돌리고 저장했어요');
+    toast('그림 블록으로 되돌렸어요');
   } catch { toast('블록은 되돌렸지만 저장하지 못했어요'); }
 });
 
@@ -585,7 +710,7 @@ $('#presetInput').addEventListener('change', async (event) => {
     const preset = safePresetData(JSON.parse(await file.text()));
     customImages = preset.blocks;
     if (preset.version < BLOCK_FORMAT_VERSION) await upgradeStoredBlocks();
-    renderSlots(); renderBoard();
+    renderSlots(); renderBoard(); renderStep();
     await persistCustomImages();
     toast('프리셋을 불러오고 자동 저장했어요');
   } catch { toast('올바른 프리셋 파일이 아니에요'); }
@@ -593,15 +718,22 @@ $('#presetInput').addEventListener('change', async (event) => {
 });
 
 $('#resetCustomBlocksButton').addEventListener('click', async () => {
-  if (!customImages.some(Boolean)) { toast('초기화할 사진 블록이 없어요'); return; }
-  if (!window.confirm('꾸민 블록을 모두 기본 블록으로 되돌릴까요? 저장된 사진 블록도 함께 삭제됩니다.')) return;
+  if (!customImages.some(Boolean)) { toast('되돌릴 사진 블록이 없어요'); return; }
+  const ok = await askConfirm({
+    icon: '↺',
+    title: '모두 처음으로 되돌릴까요?',
+    text: '꾸며 둔 사진 블록이 모두 그림 블록으로 돌아가요.',
+    confirmLabel: '되돌리기',
+    cancelLabel: '그만두기',
+  });
+  if (!ok) return;
   try {
     await storageQueue.catch(() => {});
     await clearCustomBlocks();
     customImages = Array(DEFAULT_BLOCKS.length).fill(null);
-    renderSlots(); renderBoard();
-    toast('꾸민 블록을 모두 초기화했어요');
-  } catch { toast('저장된 블록을 초기화하지 못했어요'); }
+    renderSlots(); renderBoard(); renderStep();
+    toast('모두 그림 블록으로 되돌렸어요');
+  } catch { toast('저장된 블록을 되돌리지 못했어요'); }
 });
 
 settingsDialog.addEventListener('close', () => $('#openSettingsButton').focus());
