@@ -1,0 +1,56 @@
+[
+  {
+    "id": "rabbit",
+    "name": "토끼",
+    "artwork": "./rabbit/artwork.svg",
+    "mask": "./rabbit/mask.svg",
+    "holeCenter": [128, 155],
+    "outline": "#8f204d",
+    "outlineWidth": 8
+  },
+  {
+    "id": "bear",
+    "name": "곰",
+    "artwork": "./bear/artwork.svg",
+    "mask": "./bear/mask.svg",
+    "holeCenter": [128, 154],
+    "outline": "#52331e",
+    "outlineWidth": 8
+  },
+  {
+    "id": "cat",
+    "name": "고양이",
+    "artwork": "./cat/artwork.svg",
+    "mask": "./cat/mask.svg",
+    "holeCenter": [128, 153],
+    "outline": "#8f4200",
+    "outlineWidth": 8
+  },
+  {
+    "id": "star",
+    "name": "별",
+    "artwork": "./star/artwork.svg",
+    "mask": "./star/mask.svg",
+    "holeCenter": [128, 133],
+    "outline": "#42227e",
+    "outlineWidth": 8
+  },
+  {
+    "id": "flower",
+    "name": "꽃",
+    "artwork": "./flower/artwork.svg",
+    "mask": "./flower/mask.svg",
+    "holeCenter": [128, 135],
+    "outline": "#0b6842",
+    "outlineWidth": 8
+  },
+  {
+    "id": "heart",
+    "name": "하트",
+    "artwork": "./heart/artwork.svg",
+    "mask": "./heart/mask.svg",
+    "holeCenter": [128, 130],
+    "outline": "#891b3d",
+    "outlineWidth": 8
+  }
+]
