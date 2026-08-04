@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v12'; // v12: 홈 화면 설치 팝업
+const CACHE = 'sonjupang-mvp-v13'; // v13: 새 앱 아이콘
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',
