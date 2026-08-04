@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v14'; // v14: 큰 사진 연출 · 누름 확대
+const CACHE = 'sonjupang-mvp-v15'; // v15: 진동 켜기/끄기 버튼 · 소리·진동 설정 저장
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',
@@ -24,6 +24,7 @@ const ASSETS = [
   './src/storage.js',
   './src/praise-settings.js',
   './src/praise-fx.js',
+  './src/feedback-settings.js',
   './assets/celebrations/good.png',
   './assets/celebrations/cool.png',
   './assets/celebrations/amazing.png',

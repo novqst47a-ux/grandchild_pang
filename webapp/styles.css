@@ -439,7 +439,10 @@ dialog { max-width: none; }
   html { font-size: 112.5%; } /* 18px 상당. §10 — 이보다 줄이지 않는다 */
   .app-shell { padding-inline: 8px; }
   .brand-mark { width: 42px; height: 42px; }
-  .icon-button { min-width: 62px; min-height: 56px; padding-inline: 7px; }
+  /* 버튼이 소리·진동·꾸미기 셋으로 늘었다. 360px에서도 브랜드와 겹치지 않도록
+     간격과 폭을 조인다. 폭은 §5.1의 하한 56px까지만 줄인다. */
+  .top-actions { gap: 6px; }
+  .icon-button { min-width: 56px; min-height: 56px; padding-inline: 5px; }
   .scoreboard { gap: 6px; }
   .score-card { flex-basis: 82px; min-height: 72px; border-radius: 15px; }
   .score-card strong { font-size: 1.5rem; }
