@@ -29,6 +29,11 @@ import {
   samplePhoto,
   upgradeBlockImage,
 } from './custom-blocks.js';
+import {
+  defaultFeedbackStorage,
+  readFeedbackSettings,
+  writeFeedbackSettings,
+} from './feedback-settings.js';
 import { setupInstallPrompt } from './install-prompt.js';
 import { DEFAULT_PRAISE_SETTINGS, normalizePraiseSettings } from './praise-settings.js';
 import { playPraiseEffect, praiseHeroImage, stopPraiseEffects, updatePraiseSources } from './praise-fx.js';
@@ -326,7 +331,7 @@ async function trySwap(from, to) {
     transientClasses = new Map([[keyOf(from.row, from.col), 'invalid'], [keyOf(to.row, to.col), 'invalid']]);
     setMessage('여기는 안 움직여요', '다른 곳을 눌러 보세요. 이동 횟수는 그대로예요');
     playTone(145, .09);
-    navigator.vibrate?.(20); // 소리를 끈 어르신에게도 피드백이 남도록(계획 A6)
+    buzz(20); // 소리를 끈 어르신에게도 피드백이 남도록(계획 A6)
     renderBoard();
     await sleep(320);
     busy = false;
@@ -372,7 +377,7 @@ async function processMatches() {
     showCelebration(combo, photoSlot);
     praiseMatched(photoSlot, combo);
     playMatchSound(combo);
-    navigator.vibrate?.(combo > 1 ? [35, 35, 55] : 35);
+    buzz(combo > 1 ? [35, 35, 55] : 35);
     renderBoard();
     await sleep(300);
     const collapsed = collapseBoard(board, matches);
@@ -551,10 +556,33 @@ $('#newGameButton').addEventListener('click', async () => {
   if (ok) startGame();
 });
 
-let muted = false;
+// 진동은 소리와 따로 끈다. 조용한 곳에서 소리만 끄고 손끝 피드백은 남기고 싶다는 요청,
+// 반대로 손 떨림이 있어 진동만 거슬린다는 경우가 둘 다 있어서다.
+// 둘 다 저장한다 — 한 번 끈 것을 다음에 열 때 또 끄게 만들지 않는다.
+const feedbackStorage = defaultFeedbackStorage();
+let { soundOn, vibrationOn } = readFeedbackSettings(feedbackStorage);
+
+function buzz(pattern) {
+  if (!vibrationOn) return;
+  navigator.vibrate?.(pattern);
+}
+
+// aria-pressed는 "끈 상태"를 눌린 것으로 본다. 켜져 있는 쪽이 평상시라서다.
+function paintFeedbackButton(button, { on, name, onIcon, offIcon }) {
+  button.setAttribute('aria-pressed', String(!on));
+  button.setAttribute('aria-label', on ? `${name} 끄기` : `${name} 켜기`);
+  button.firstElementChild.textContent = on ? onIcon : offIcon;
+}
+
+function renderFeedbackButtons() {
+  paintFeedbackButton($('#soundButton'), { on: soundOn, name: '소리', onIcon: '🔊', offIcon: '🔇' });
+  paintFeedbackButton($('#vibrationButton'), { on: vibrationOn, name: '진동', onIcon: '📳', offIcon: '🔕' });
+}
+renderFeedbackButtons(); // 저장해 둔 값으로 첫 화면을 맞춘다
+
 let audioContext;
 function playTone(frequency, duration, delay = 0) {
-  if (muted) return;
+  if (!soundOn) return;
   try {
     audioContext ||= new AudioContext();
     const oscillator = audioContext.createOscillator();
@@ -571,13 +599,24 @@ function playMatchSound(combo) {
   playTone(440 + combo * 55, .13);
   playTone(610 + combo * 70, .16, .09);
 }
+function saveFeedbackSettings() {
+  writeFeedbackSettings(feedbackStorage, { soundOn, vibrationOn });
+}
+
 $('#soundButton').addEventListener('click', () => {
-  muted = !muted;
-  $('#soundButton').setAttribute('aria-pressed', String(muted));
-  $('#soundButton').setAttribute('aria-label', muted ? '소리 켜기' : '소리 끄기');
-  $('#soundButton').firstElementChild.textContent = muted ? '🔇' : '🔊';
-  toast(muted ? '소리를 껐어요' : '소리를 켰어요');
-  if (!muted) playTone(440, .08);
+  soundOn = !soundOn;
+  renderFeedbackButtons();
+  saveFeedbackSettings();
+  toast(soundOn ? '소리를 켰어요' : '소리를 껐어요');
+  if (soundOn) playTone(440, .08);
+});
+
+$('#vibrationButton').addEventListener('click', () => {
+  vibrationOn = !vibrationOn;
+  renderFeedbackButtons();
+  saveFeedbackSettings();
+  toast(vibrationOn ? '진동을 켰어요' : '진동을 껐어요');
+  buzz(30); // 켠 직후 한 번 울려, 눌린 결과를 손끝으로도 확인시킨다
 });
 
 // 커스텀 블록 편집기: 사진은 메모리에만 두고, 사용자가 내보낸 프리셋 파일만 기기에 남긴다.
