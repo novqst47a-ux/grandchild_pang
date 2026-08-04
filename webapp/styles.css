@@ -357,6 +357,12 @@ dialog { max-width: none; }
 .confirm-actions { gap: 10px; }
 .confirm-actions button { flex: 1; width: auto; }
 
+/* 설치 안내 단계. 아이폰처럼 설치 API가 없는 브라우저에서 "공유 → 홈 화면에 추가"를
+   말로만 적으면 어느 것을 먼저 누를지 알기 어렵다. 번호를 원으로 크게 붙여 순서를 보인다. */
+.install-steps { display: grid; gap: 10px; margin: 0 0 20px; padding: 0; text-align: start; list-style: none; }
+.install-steps li { display: flex; gap: 12px; align-items: center; padding: 12px 14px; background: var(--surface-warm); border: 3px solid var(--line-strong); border-radius: var(--r-md); font-size: var(--t-body); }
+.install-step-mark { flex: 0 0 36px; display: grid; place-items: center; width: 36px; height: 36px; color: white; background: var(--carrot-deep); border-radius: 50%; font-weight: 900; }
+
 .toast { position: fixed; z-index: 100; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); width: max-content; max-width: calc(100% - 28px); padding: 12px 19px; color: white; background: rgba(43, 38, 33, .93); border: 2px solid white; border-radius: var(--r-full); font-size: var(--t-body); font-weight: 800; opacity: 0; transform: translate(-50%, 20px); transition: var(--m-base) var(--e-standard); pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 /* §9 — 잘 됐는지 안 됐는지를 글자만이 아니라 색으로도 알린다. 흰 글자 대비는 5.3:1 / 5.5:1. */

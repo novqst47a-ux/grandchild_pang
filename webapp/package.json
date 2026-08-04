@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "test": "node --test",
-    "check": "node --check src/game-core.js && node --check src/custom-blocks.js && node --check src/storage.js && node --check src/praise-settings.js && node --check src/praise-fx.js && node --check src/app.js && node --check scripts/serve.mjs && node --check scripts/check-contrast.mjs && node scripts/check-contrast.mjs",
+    "check": "node --check src/game-core.js && node --check src/custom-blocks.js && node --check src/storage.js && node --check src/praise-settings.js && node --check src/praise-fx.js && node --check src/install-prompt.js && node --check src/app.js && node --check scripts/serve.mjs && node --check scripts/check-contrast.mjs && node scripts/check-contrast.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "icons": "node scripts/generate-icons.mjs"
   }
