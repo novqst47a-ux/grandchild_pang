@@ -48,8 +48,13 @@
     <section class="game-area" aria-label="매치3 게임판">
       <div class="board-wrap">
         <div class="board" id="board" role="grid" aria-label="5행 5열 게임판" aria-busy="false"></div>
+        <!-- 축하 그림 위로 사진 블록 한 장이 크게 뜬다(기획 §2.1 보강).
+             손주 사진을 크게 보고 싶다는 요청이라 판 위로 넘칠 만큼 키운다. -->
         <div class="celebration-popup" id="celebrationPopup" hidden aria-hidden="true">
-          <img id="celebrationImage" src="assets/celebrations/good.png" alt="">
+          <div class="celebration-frame">
+            <div class="celebration-hero" id="celebrationHero" hidden></div>
+            <img id="celebrationImage" src="assets/celebrations/good.png" alt="">
+          </div>
         </div>
         <div class="board-overlay" id="boardOverlay" hidden>
           <div class="overlay-card">
