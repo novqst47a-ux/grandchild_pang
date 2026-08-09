@@ -718,20 +718,60 @@ function prepareModeSelection() {
   renderBoard();
 }
 
+// Android의 시스템 뒤로가기는 <dialog>의 cancel 이벤트보다 브라우저 히스토리를
+// 먼저 움직이는 WebView가 있다. 모드 선택 중에만 같은 주소의 보호 항목을 하나 쌓고,
+// 뒤로가기가 들어오면 즉시 다시 쌓아 화면을 유지한다. 모드를 고르면 보호 항목을
+// 되돌려 평소의 뒤로가기는 그대로 동작하게 한다.
+const MODE_PICKER_HISTORY_KEY = 'sonjupangModePicker';
+let modePickerHistoryPhase = 'idle';
+
+function modePickerGuardState() {
+  const current = history.state;
+  const base = current && typeof current === 'object' ? current : {};
+  return { ...base, [MODE_PICKER_HISTORY_KEY]: true };
+}
+
+function blockBackWhileChoosingMode() {
+  if (!history.state?.[MODE_PICKER_HISTORY_KEY]) {
+    history.pushState(modePickerGuardState(), '');
+  }
+  modePickerHistoryPhase = 'armed';
+}
+
+function releaseModePickerBackBlock() {
+  if (modePickerHistoryPhase !== 'armed') return;
+  modePickerHistoryPhase = 'releasing';
+  if (history.state?.[MODE_PICKER_HISTORY_KEY]) history.back();
+  else modePickerHistoryPhase = 'idle';
+}
+
+addEventListener('popstate', () => {
+  if (modeDialog.open) {
+    history.pushState(modePickerGuardState(), '');
+    modePickerHistoryPhase = 'armed';
+    $('#timedModeButton').focus({ preventScroll: true });
+    return;
+  }
+  modePickerHistoryPhase = 'idle';
+});
+
 function showModePicker() {
   prepareModeSelection();
   renderRankings();
   if (!modeDialog.open) modeDialog.showModal();
+  blockBackWhileChoosingMode();
   $('#timedModeButton').focus();
 }
 
 modeDialog.addEventListener('cancel', (event) => event.preventDefault());
 $('#timedModeButton').addEventListener('click', () => {
   modeDialog.close();
+  releaseModePickerBackBlock();
   startGame(GAME_MODES.TIMED);
 });
 $('#unlimitedModeButton').addEventListener('click', () => {
   modeDialog.close();
+  releaseModePickerBackBlock();
   startGame(GAME_MODES.UNLIMITED);
 });
 
