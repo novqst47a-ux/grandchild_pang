@@ -1,6 +1,5 @@
 export const BOARD_SIZE = 5;
 export const TYPE_COUNT = 5;
-export const START_MOVES = 20;
 export const POINTS_PER_BLOCK = 10;
 
 export function keyOf(row, col) {

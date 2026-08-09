@@ -1,7 +1,6 @@
 import {
   BOARD_SIZE,
   POINTS_PER_BLOCK,
-  START_MOVES,
   areAdjacent,
   collapseBoard,
   findMatches,
@@ -11,6 +10,16 @@ import {
   reshuffle,
   swapCells,
 } from './game-core.js';
+import {
+  GAME_MODES,
+  TIMED_GAME_SECONDS,
+  UNLIMITED_CHECKPOINT,
+  UNLIMITED_MAX_SCORE,
+  addTimedRanking,
+  addUnlimitedScore,
+  formatGameScore,
+  formatRemainingTime,
+} from './game-modes.js';
 import {
   BADGE_PATHS,
   BLOCK_FORMAT_VERSION,
@@ -42,15 +51,17 @@ import {
   isStoragePersisted,
   loadCustomBlocks,
   loadPraiseSettings,
+  loadTimedRankings,
   saveCustomBlocks,
   savePraiseSettings,
+  saveTimedRankings,
 } from './storage.js';
 
 const $ = (selector) => document.querySelector(selector);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, matchMedia('(prefers-reduced-motion: reduce)').matches ? 20 : ms));
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const LOW_MOVES = 3; // 이 아래로 남으면 남은 이동 카드를 경고 상태로 (DESIGN §5.2)
+const LOW_TIME_SECONDS = 30;
 const TOAST_MS = 2500; // DESIGN §9
 const DROP_MS = 400; // .tile.spawned의 --m-slow와 맞춘다. 짧으면 낙하 중에 DOM이 갈린다
 const SCORE_COUNT_MS = 400; // §8 --m-slow — 점수 카운트업
@@ -59,13 +70,17 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const boardElement = $('#board');
 const scoreValue = $('#scoreValue');
-const movesValue = $('#movesValue');
-const movesCard = $('#movesCard');
+const statusValue = $('#statusValue');
+const statusLabel = $('#statusLabel');
+const statusCard = $('#statusCard');
 const messageTitle = $('#messageTitle');
 const messageText = $('#messageText');
 const liveStatus = $('#liveStatus');
 const boardOverlay = $('#boardOverlay');
 const finalScore = $('#finalScore');
+const resultMessage = $('#resultMessage');
+const resultRankingPanel = $('#resultRankingPanel');
+const modeDialog = $('#modeDialog');
 const celebrationPopup = $('#celebrationPopup');
 const celebrationImage = $('#celebrationImage');
 const celebrationHero = $('#celebrationHero');
@@ -85,7 +100,12 @@ let board = makeBoard();
 let selected = null;
 let busy = false;
 let score = 0;
-let moves = START_MOVES;
+let gameMode = null;
+let remainingSeconds = TIMED_GAME_SECONDS;
+let timedDeadline = 0;
+let timerId = 0;
+let unlimitedExtended = false;
+let timedRankings = [];
 let gameOver = false;
 let hintKeys = new Set();
 let transientClasses = new Map();
@@ -121,7 +141,7 @@ let shownScore = 0;
 
 function paintScore(value) {
   shownScore = value;
-  scoreValue.textContent = value.toLocaleString('ko-KR');
+  scoreValue.textContent = formatGameScore(value, gameMode);
 }
 
 function animateScore(target) {
@@ -144,12 +164,86 @@ function animateScore(target) {
 
 function updateStats() {
   animateScore(score);
-  movesValue.textContent = String(moves);
-  const low = !gameOver && moves <= LOW_MOVES;
-  movesCard.classList.toggle('low', low);
-  // 색만 바꾸면 눈에 띄지 않는다. 줄어들 때마다 한 번씩 튀게 해서 알아채도록 한다.
-  movesCard.classList.remove('pulse');
-  if (low) { void movesCard.offsetWidth; movesCard.classList.add('pulse'); }
+  const timed = gameMode === GAME_MODES.TIMED;
+  statusLabel.textContent = timed ? '남은 시간' : '게임 모드';
+  statusValue.textContent = timed
+    ? formatRemainingTime(remainingSeconds)
+    : gameMode === GAME_MODES.UNLIMITED ? '무제한' : '선택';
+  statusValue.classList.toggle('mode-name', !timed);
+  statusCard.classList.toggle('low', timed && !gameOver && remainingSeconds <= LOW_TIME_SECONDS);
+}
+
+function stopTimedClock() {
+  clearInterval(timerId);
+  timerId = 0;
+  timedDeadline = 0;
+}
+
+function refreshTimedClock() {
+  if (gameMode !== GAME_MODES.TIMED || gameOver) return;
+  const next = Math.max(0, Math.ceil((timedDeadline - Date.now()) / 1000));
+  if (next !== remainingSeconds) {
+    remainingSeconds = next;
+    updateStats();
+    // 마지막 30초 진입은 색뿐 아니라 한 번의 움직임으로도 알려 준다.
+    if (next === LOW_TIME_SECONDS) {
+      statusCard.classList.remove('pulse');
+      void statusCard.offsetWidth;
+      statusCard.classList.add('pulse');
+      setMessage('이제 30초 남았어요', '천천히 끝까지 해 보세요');
+    }
+  }
+  if (next === 0) endGame('time');
+}
+
+function startTimedClock() {
+  stopTimedClock();
+  remainingSeconds = TIMED_GAME_SECONDS;
+  timedDeadline = Date.now() + TIMED_GAME_SECONDS * 1000;
+  updateStats();
+  timerId = setInterval(refreshTimedClock, 250);
+}
+
+function rankingDate(playedAt) {
+  return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(new Date(playedAt));
+}
+
+function paintRankingList(list) {
+  const fragment = document.createDocumentFragment();
+  if (!timedRankings.length) {
+    const empty = document.createElement('li');
+    empty.className = 'ranking-empty';
+    empty.textContent = '아직 기록이 없어요';
+    fragment.append(empty);
+  } else {
+    for (const entry of timedRankings) {
+      const item = document.createElement('li');
+      const scoreText = document.createElement('span');
+      scoreText.className = 'ranking-score';
+      scoreText.textContent = `${entry.score.toLocaleString('ko-KR')}점`;
+      const dateText = document.createElement('time');
+      dateText.className = 'ranking-date';
+      dateText.dateTime = entry.playedAt;
+      dateText.textContent = rankingDate(entry.playedAt);
+      item.append(scoreText, dateText);
+      fragment.append(item);
+    }
+  }
+  list.replaceChildren(fragment);
+}
+
+function renderRankings() {
+  paintRankingList($('#modeRankingList'));
+  paintRankingList($('#resultRankingList'));
+}
+
+async function loadTimedRankingOptions() {
+  try {
+    timedRankings = await loadTimedRankings();
+  } catch {
+    timedRankings = [];
+  }
+  renderRankings();
 }
 
 // 다섯 블록 면은 밝기가 거의 같아 색만으로는 구분되지 않는다.
@@ -329,49 +423,55 @@ async function trySwap(from, to) {
   if (!matches.size) {
     board = original;
     transientClasses = new Map([[keyOf(from.row, from.col), 'invalid'], [keyOf(to.row, to.col), 'invalid']]);
-    setMessage('여기는 안 움직여요', '다른 곳을 눌러 보세요. 이동 횟수는 그대로예요');
+    setMessage('여기는 안 움직여요', '다른 곳을 눌러 보세요. 점수는 그대로예요');
     playTone(145, .09);
     buzz(20); // 소리를 끈 어르신에게도 피드백이 남도록(계획 A6)
     renderBoard();
     await sleep(320);
+    if (gameOver) return;
     busy = false;
     transientClasses.clear();
     renderBoard();
     return;
   }
 
-  moves -= 1;
-  updateStats();
   await processMatches();
-  if (moves <= 0) {
-    endGame();
-  } else {
-    if (!findValidMoves(board).length) {
-      setMessage('새로 섞어 드릴게요', '맞출 수 있는 자리를 만들고 있어요');
-      await sleep(450);
-      board = reshuffle(board);
-      transientClasses = new Map(board.flatMap((_, row) => board[row].map((__, col) => [keyOf(row, col), 'spawned'])));
-      renderBoard();
-      await sleep(DROP_MS);
-    }
-    busy = false;
-    transientClasses.clear();
+  if (gameOver) return;
+  if (!findValidMoves(board).length) {
+    setMessage('새로 섞어 드릴게요', '맞출 수 있는 자리를 만들고 있어요');
+    await sleep(450);
+    if (gameOver) return;
+    board = reshuffle(board);
+    transientClasses = new Map(board.flatMap((_, row) => board[row].map((__, col) => [keyOf(row, col), 'spawned'])));
     renderBoard();
+    await sleep(DROP_MS);
   }
+  if (gameOver) return;
+  busy = false;
+  transientClasses.clear();
+  renderBoard();
 }
 
 async function processMatches() {
   let combo = 0;
-  while (true) {
+  while (!gameOver) {
     const matches = findMatches(board);
     if (!matches.size) break;
     combo += 1;
     const gained = matches.size * POINTS_PER_BLOCK * combo;
-    score += gained;
+    const scoreChange = gameMode === GAME_MODES.UNLIMITED
+      ? addUnlimitedScore(score, gained, unlimitedExtended)
+      : { score: score + gained, awarded: gained, checkpointReached: false, maxReached: false, atMax: false };
+    score = scoreChange.score;
     updateStats();
     transientClasses = new Map([...matches].map((key) => [key, 'matched']));
-    const title = combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
-    setMessage(title, `+${gained.toLocaleString('ko-KR')}점`);
+    const title = scoreChange.atMax
+      ? 'MAX 점수! 정말 대단해요'
+      : combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
+    const detail = scoreChange.awarded
+      ? `+${scoreChange.awarded.toLocaleString('ko-KR')}점`
+      : '점수는 MAX, 게임은 계속할 수 있어요';
+    setMessage(title, detail);
     // 큰 그림과 파티클은 같은 블록을 가리켜야 한다. 자리를 한 번만 골라 둘에 함께 넘긴다.
     const photoSlot = matchedPhotoSlot(matches);
     showCelebration(combo, photoSlot);
@@ -380,20 +480,43 @@ async function processMatches() {
     buzz(combo > 1 ? [35, 35, 55] : 35);
     renderBoard();
     await sleep(300);
+    if (gameOver) return;
     const collapsed = collapseBoard(board, matches);
     board = collapsed.board;
     transientClasses = new Map([...collapsed.spawned].map((key) => [key, 'spawned']));
     renderBoard();
     await sleep(DROP_MS);
+    if (gameOver) return;
+
+    if (scoreChange.checkpointReached) {
+      const keepPlaying = await askConfirm({
+        icon: '★',
+        title: `${UNLIMITED_CHECKPOINT.toLocaleString('ko-KR')}점에 도착했어요!`,
+        text: `계속하면 ${UNLIMITED_MAX_SCORE.toLocaleString('ko-KR')}점까지 올라갈 수 있어요`,
+        confirmLabel: '계속하기',
+        cancelLabel: '여기까지',
+      });
+      if (!keepPlaying) {
+        await endGame('unlimited-checkpoint');
+        return;
+      }
+      unlimitedExtended = true;
+      setMessage('좋아요, 계속해 볼까요?', `${UNLIMITED_MAX_SCORE.toLocaleString('ko-KR')}점까지 갈 수 있어요`);
+    } else if (scoreChange.maxReached) {
+      setMessage('MAX 점수에 도착했어요!', '점수는 MAX로 두고 계속 즐길 수 있어요');
+    }
   }
 }
 
-function startGame() {
+function startGame(mode) {
+  stopTimedClock();
+  gameMode = mode;
   board = makeBoard();
   selected = null;
   busy = false;
   score = 0;
-  moves = START_MOVES;
+  remainingSeconds = TIMED_GAME_SECONDS;
+  unlimitedExtended = false;
   gameOver = false;
   hintKeys.clear();
   transientClasses.clear();
@@ -401,20 +524,52 @@ function startGame() {
   hideCelebration();
   stopPraiseEffects();
   updateStats();
-  setMessage('같은 그림 3개를 모아 보세요', '블록을 누르고, 옆 블록을 눌러 보세요');
+  setMessage(
+    mode === GAME_MODES.TIMED ? '3분 도전을 시작해요!' : '제한 없이 천천히 즐겨 보세요',
+    '블록을 누르고, 옆 블록을 눌러 보세요',
+  );
   renderBoard();
+  if (mode === GAME_MODES.TIMED) startTimedClock();
 }
 
-function endGame() {
+async function endGame(reason) {
+  if (gameOver) return;
+  stopTimedClock();
   busy = false;
   gameOver = true;
-  updateStats(); // 경고 상태를 해제한다. 게임이 끝난 뒤까지 빨갛게 둘 이유가 없다
-  finalScore.textContent = `${score.toLocaleString('ko-KR')}점`;
+  updateStats();
+  const scoreText = formatGameScore(score, gameMode);
+  finalScore.textContent = scoreText === 'MAX' ? 'MAX' : `${scoreText}점`;
   boardOverlay.hidden = false;
-  setMessage('오늘은 여기까지! 참 잘했어요', `${score.toLocaleString('ko-KR')}점이에요`);
+  resultRankingPanel.hidden = gameMode !== GAME_MODES.TIMED;
+  if (gameMode === GAME_MODES.TIMED) {
+    $('#overlayKicker').textContent = '3분 동안 참 잘했어요!';
+    $('#overlayTitle').textContent = '시간 끝!';
+    resultMessage.textContent = '최고 기록을 확인하고 있어요';
+    setMessage('3분 도전을 마쳤어요', `${scoreText}점이에요`);
+  } else {
+    $('#overlayKicker').textContent = '참 잘했어요!';
+    $('#overlayTitle').textContent = reason === 'unlimited-checkpoint' ? '멋진 기록이에요!' : '게임 끝';
+    resultMessage.textContent = '무제한 모드는 기록이 남지 않아요';
+    setMessage('오늘은 여기까지! 참 잘했어요', `${scoreText}점이에요`);
+  }
   playMatchSound(3);
   renderBoard();
   $('#restartButton').focus();
+
+  if (gameMode === GAME_MODES.TIMED) {
+    const result = addTimedRanking(timedRankings, score);
+    timedRankings = result.rankings;
+    renderRankings();
+    resultMessage.textContent = result.rank
+      ? `축하해요! ${result.rank}위 기록이에요`
+      : '이번 점수도 소중한 도전이에요';
+    try {
+      await saveTimedRankings(timedRankings);
+    } catch {
+      resultMessage.textContent += ' · 이 브라우저에 기록을 남기지 못했어요';
+    }
+  }
 }
 
 function showHint() {
@@ -422,7 +577,7 @@ function showHint() {
   const move = findValidMoves(board)[0];
   if (!move) return;
   hintKeys = new Set(move.map(({ row, col }) => keyOf(row, col)));
-  setMessage('여기를 옮겨 보세요', '힌트는 이동 횟수를 쓰지 않아요');
+  setMessage('여기를 옮겨 보세요', '알맞은 두 블록을 알려 드려요');
   renderBoard();
   setTimeout(() => { hintKeys.clear(); renderBoard(); }, 1800);
 }
@@ -543,8 +698,45 @@ $('#confirmOkButton').addEventListener('click', () => { confirmDialog.close(); s
 confirmDialog.addEventListener('cancel', () => settleConfirmWith(false));
 confirmDialog.addEventListener('close', () => settleConfirmWith(false));
 
+function prepareModeSelection() {
+  stopTimedClock();
+  gameMode = null;
+  board = makeBoard();
+  selected = null;
+  busy = false;
+  score = 0;
+  remainingSeconds = TIMED_GAME_SECONDS;
+  unlimitedExtended = false;
+  gameOver = true;
+  hintKeys.clear();
+  transientClasses.clear();
+  boardOverlay.hidden = true;
+  hideCelebration();
+  stopPraiseEffects();
+  updateStats();
+  setMessage('게임 방법을 골라 주세요', '3분 도전 또는 무제한을 선택해 보세요');
+  renderBoard();
+}
+
+function showModePicker() {
+  prepareModeSelection();
+  renderRankings();
+  if (!modeDialog.open) modeDialog.showModal();
+  $('#timedModeButton').focus();
+}
+
+modeDialog.addEventListener('cancel', (event) => event.preventDefault());
+$('#timedModeButton').addEventListener('click', () => {
+  modeDialog.close();
+  startGame(GAME_MODES.TIMED);
+});
+$('#unlimitedModeButton').addEventListener('click', () => {
+  modeDialog.close();
+  startGame(GAME_MODES.UNLIMITED);
+});
+
 $('#hintButton').addEventListener('click', showHint);
-$('#restartButton').addEventListener('click', startGame);
+$('#restartButton').addEventListener('click', showModePicker);
 $('#newGameButton').addEventListener('click', async () => {
   const ok = await askConfirm({
     icon: '↻',
@@ -553,7 +745,7 @@ $('#newGameButton').addEventListener('click', async () => {
     confirmLabel: '새 게임',
     cancelLabel: '계속하기',
   });
-  if (ok) startGame();
+  if (ok) showModePicker();
 });
 
 // 진동은 소리와 따로 끈다. 조용한 곳에서 소리만 끄고 손끝 피드백은 남기고 싶다는 요청,
@@ -1065,18 +1257,18 @@ async function initializeApp() {
     $('#frameList').textContent = '프레임을 준비하지 못했어요';
     $('#openSettingsButton').title = '프레임 파일을 확인해 주세요';
   });
-  // startGame()을 먼저 부르면 그림 블록으로 한 판을 그린 뒤 사진 블록으로 다시 그려
-  // 첫 화면이 한 번 깜빡인다. 저장소를 읽고 나서 시작해 그 깜빡임을 없앤다(DESIGN §9).
-  let started = false;
-  const ready = loadStoredBlocks().then(() => {
+  // 저장소를 먼저 읽어 첫 모드 선택 화면에 사진 블록과 랭킹이 함께 보이게 한다.
+  // 저장이 늦을 때는 기본 블록·빈 랭킹으로 먼저 열고, 도착한 값만 나중에 다시 그린다.
+  let prepared = false;
+  const ready = Promise.all([loadStoredBlocks(), loadTimedRankingOptions()]).then(() => {
     // 아래 race가 타임아웃으로 끝난 뒤에 사진이 도착한 경우에만 다시 그린다.
-    if (started) { renderSlots(); renderBoard(); }
+    if (prepared) { renderSlots(); renderBoard(); renderRankings(); }
   });
   // 저장소가 늦거나 응답하지 않아도 게임은 시작돼야 한다. 스켈레톤에 갇히면 아무것도 못 한다.
   await Promise.race([ready, wait(STORAGE_WAIT_MS)]);
-  started = true;
+  prepared = true;
   renderSlots();
-  startGame();
+  showModePicker();
 }
 
 initializeApp();

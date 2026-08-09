@@ -1,10 +1,12 @@
 import { BLOCK_FORMAT_VERSION } from './custom-blocks.js';
+import { normalizeTimedRankings } from './game-modes.js';
 
 const BLOCK_COUNT = 5;
 const DB_NAME = 'sonjupang-local';
 const DB_STORE = 'settings';
 const WEB_KEY = 'custom-blocks';
 const EFFECT_KEY = 'praise-effects';
+const TIMED_RANKINGS_KEY = 'timed-rankings';
 
 function emptyBlocks() {
   return Array(BLOCK_COUNT).fill(null);
@@ -92,4 +94,15 @@ export async function loadPraiseSettings() {
 
 export async function savePraiseSettings(settings) {
   await webTransaction('readwrite', (store) => store.put({ ...settings }, EFFECT_KEY));
+}
+
+// 사진 블록과 같은 IndexedDB 안에 두되 키는 분리한다. 무제한 모드는 이 함수를
+// 호출하지 않으므로 기록이 남지 않는다.
+export async function loadTimedRankings() {
+  return normalizeTimedRankings(await webTransaction('readonly', (store) => store.get(TIMED_RANKINGS_KEY)));
+}
+
+export async function saveTimedRankings(rankings) {
+  const normalized = normalizeTimedRankings(rankings);
+  await webTransaction('readwrite', (store) => store.put(normalized, TIMED_RANKINGS_KEY));
 }

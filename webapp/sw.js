@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v15'; // v15: 진동 켜기/끄기 버튼 · 소리·진동 설정 저장
+const CACHE = 'sonjupang-mvp-v16'; // v16: 무제한·3분 도전 모드와 브라우저 랭킹
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',
@@ -19,6 +19,7 @@ const ASSETS = [
   './icon-512.png',
   './src/app.js',
   './src/game-core.js',
+  './src/game-modes.js',
   './src/custom-blocks.js',
   './src/install-prompt.js',
   './src/storage.js',
