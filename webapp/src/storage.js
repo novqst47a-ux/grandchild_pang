@@ -1,5 +1,5 @@
 import { BLOCK_FORMAT_VERSION } from './custom-blocks.js';
-import { normalizeTimedRankings } from './game-modes.js';
+import { normalizeTimedRankings, normalizeUnlimitedProgress } from './game-modes.js';
 
 const BLOCK_COUNT = 5;
 const DB_NAME = 'sonjupang-local';
@@ -7,6 +7,7 @@ const DB_STORE = 'settings';
 const WEB_KEY = 'custom-blocks';
 const EFFECT_KEY = 'praise-effects';
 const TIMED_RANKINGS_KEY = 'timed-rankings';
+const UNLIMITED_PROGRESS_KEY = 'unlimited-progress';
 
 function emptyBlocks() {
   return Array(BLOCK_COUNT).fill(null);
@@ -105,4 +106,21 @@ export async function loadTimedRankings() {
 export async function saveTimedRankings(rankings) {
   const normalized = normalizeTimedRankings(rankings);
   await webTransaction('readwrite', (store) => store.put(normalized, TIMED_RANKINGS_KEY));
+}
+
+export async function loadUnlimitedProgress() {
+  return normalizeUnlimitedProgress(await webTransaction('readonly', (store) => store.get(UNLIMITED_PROGRESS_KEY)));
+}
+
+export async function saveUnlimitedProgress(score) {
+  const normalized = normalizeUnlimitedProgress({ score });
+  if (normalized === null) {
+    await clearUnlimitedProgress();
+    return;
+  }
+  await webTransaction('readwrite', (store) => store.put({ score: normalized }, UNLIMITED_PROGRESS_KEY));
+}
+
+export async function clearUnlimitedProgress() {
+  await webTransaction('readwrite', (store) => store.delete(UNLIMITED_PROGRESS_KEY));
 }

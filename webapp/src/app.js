@@ -15,11 +15,14 @@ import {
   TIMED_GAME_SECONDS,
   UNLIMITED_CHECKPOINT,
   UNLIMITED_MAX_SCORE,
+  UNLIMITED_RESUME_STATES,
   addTimedRanking,
   addUnlimitedScore,
   formatGameScore,
   formatRemainingTime,
+  unlimitedResumeState,
 } from './game-modes.js';
+import { createModeSelectionController } from './mode-selection.js';
 import {
   BADGE_PATHS,
   BLOCK_FORMAT_VERSION,
@@ -48,13 +51,16 @@ import { DEFAULT_PRAISE_SETTINGS, normalizePraiseSettings } from './praise-setti
 import { playPraiseEffect, praiseHeroImage, stopPraiseEffects, updatePraiseSources } from './praise-fx.js';
 import {
   clearCustomBlocks,
+  clearUnlimitedProgress,
   isStoragePersisted,
   loadCustomBlocks,
   loadPraiseSettings,
   loadTimedRankings,
+  loadUnlimitedProgress,
   saveCustomBlocks,
   savePraiseSettings,
   saveTimedRankings,
+  saveUnlimitedProgress,
 } from './storage.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -105,6 +111,10 @@ let remainingSeconds = TIMED_GAME_SECONDS;
 let timedDeadline = 0;
 let timerId = 0;
 let unlimitedExtended = false;
+let unlimitedProgressScore = null;
+let unlimitedProgressDirty = false;
+let unlimitedProgressQueue = Promise.resolve();
+let unlimitedSaveWarningShown = false;
 let timedRankings = [];
 let gameOver = false;
 let hintKeys = new Set();
@@ -244,6 +254,33 @@ async function loadTimedRankingOptions() {
     timedRankings = [];
   }
   renderRankings();
+}
+
+async function loadUnlimitedProgressOption() {
+  try {
+    const storedScore = await loadUnlimitedProgress();
+    if (!unlimitedProgressDirty) unlimitedProgressScore = storedScore;
+  } catch {
+    if (!unlimitedProgressDirty) unlimitedProgressScore = null;
+  }
+}
+
+function queueUnlimitedProgressSave(nextScore) {
+  unlimitedProgressDirty = true;
+  unlimitedProgressScore = nextScore;
+  unlimitedProgressQueue = unlimitedProgressQueue.catch(() => {}).then(() => saveUnlimitedProgress(nextScore)).catch(() => {
+    if (unlimitedSaveWarningShown) return;
+    unlimitedSaveWarningShown = true;
+    toast('이어할 점수를 이 브라우저에 남기지 못했어요', 'danger');
+  });
+  return unlimitedProgressQueue;
+}
+
+function resetUnlimitedProgress() {
+  unlimitedProgressDirty = true;
+  unlimitedProgressScore = null;
+  unlimitedProgressQueue = unlimitedProgressQueue.catch(() => {}).then(() => clearUnlimitedProgress()).catch(() => {});
+  return unlimitedProgressQueue;
 }
 
 // 다섯 블록 면은 밝기가 거의 같아 색만으로는 구분되지 않는다.
@@ -459,18 +496,20 @@ async function processMatches() {
     if (!matches.size) break;
     combo += 1;
     const gained = matches.size * POINTS_PER_BLOCK * combo;
+    const previousScore = score;
     const scoreChange = gameMode === GAME_MODES.UNLIMITED
       ? addUnlimitedScore(score, gained, unlimitedExtended)
       : { score: score + gained, awarded: gained, checkpointReached: false, maxReached: false, atMax: false };
     score = scoreChange.score;
+    if (gameMode === GAME_MODES.UNLIMITED && score !== previousScore) queueUnlimitedProgressSave(score);
     updateStats();
     transientClasses = new Map([...matches].map((key) => [key, 'matched']));
     const title = scoreChange.atMax
-      ? 'MAX 점수! 정말 대단해요'
+      ? '만점! 정말 대단해요'
       : combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
     const detail = scoreChange.awarded
       ? `+${scoreChange.awarded.toLocaleString('ko-KR')}점`
-      : '점수는 MAX, 게임은 계속할 수 있어요';
+      : '점수는 만점, 게임은 계속할 수 있어요';
     setMessage(title, detail);
     // 큰 그림과 파티클은 같은 블록을 가리켜야 한다. 자리를 한 번만 골라 둘에 함께 넘긴다.
     const photoSlot = matchedPhotoSlot(matches);
@@ -503,20 +542,22 @@ async function processMatches() {
       unlimitedExtended = true;
       setMessage('좋아요, 계속해 볼까요?', `${UNLIMITED_MAX_SCORE.toLocaleString('ko-KR')}점까지 갈 수 있어요`);
     } else if (scoreChange.maxReached) {
-      setMessage('MAX 점수에 도착했어요!', '점수는 MAX로 두고 계속 즐길 수 있어요');
+      setMessage('최고 점수에 도착했어요!', '점수는 만점으로 두고 계속 즐길 수 있어요');
     }
   }
 }
 
-function startGame(mode) {
+function startGame(mode, initialScore = 0) {
   stopTimedClock();
   gameMode = mode;
   board = makeBoard();
   selected = null;
   busy = false;
-  score = 0;
+  score = mode === GAME_MODES.UNLIMITED
+    ? Math.max(0, Math.min(UNLIMITED_MAX_SCORE, Math.floor(Number(initialScore) || 0)))
+    : 0;
   remainingSeconds = TIMED_GAME_SECONDS;
-  unlimitedExtended = false;
+  unlimitedExtended = mode === GAME_MODES.UNLIMITED && score >= UNLIMITED_CHECKPOINT;
   gameOver = false;
   hintKeys.clear();
   transientClasses.clear();
@@ -524,10 +565,13 @@ function startGame(mode) {
   hideCelebration();
   stopPraiseEffects();
   updateStats();
-  setMessage(
-    mode === GAME_MODES.TIMED ? '3분 도전을 시작해요!' : '제한 없이 천천히 즐겨 보세요',
-    '블록을 누르고, 옆 블록을 눌러 보세요',
-  );
+  if (mode === GAME_MODES.TIMED) {
+    setMessage('3분 도전을 시작해요!', '블록을 누르고, 옆 블록을 눌러 보세요');
+  } else if (score > 0) {
+    setMessage('지난 점수에서 이어서 해요', `${score.toLocaleString('ko-KR')}점부터 새 게임판에서 시작해요`);
+  } else {
+    setMessage('제한 없이 천천히 즐겨 보세요', '블록을 누르고, 옆 블록을 눌러 보세요');
+  }
   renderBoard();
   if (mode === GAME_MODES.TIMED) startTimedClock();
 }
@@ -539,7 +583,7 @@ async function endGame(reason) {
   gameOver = true;
   updateStats();
   const scoreText = formatGameScore(score, gameMode);
-  finalScore.textContent = scoreText === 'MAX' ? 'MAX' : `${scoreText}점`;
+  finalScore.textContent = scoreText === '만점' ? '만점' : `${scoreText}점`;
   boardOverlay.hidden = false;
   resultRankingPanel.hidden = gameMode !== GAME_MODES.TIMED;
   if (gameMode === GAME_MODES.TIMED) {
@@ -550,7 +594,7 @@ async function endGame(reason) {
   } else {
     $('#overlayKicker').textContent = '참 잘했어요!';
     $('#overlayTitle').textContent = reason === 'unlimited-checkpoint' ? '멋진 기록이에요!' : '게임 끝';
-    resultMessage.textContent = '무제한 모드는 기록이 남지 않아요';
+    resultMessage.textContent = '순위에는 남지 않고, 이어할 점수만 저장해요';
     setMessage('오늘은 여기까지! 참 잘했어요', `${scoreText}점이에요`);
   }
   playMatchSound(3);
@@ -668,18 +712,26 @@ addEventListener('contextmenu', (event) => {
 // 확인 다이얼로그. 네이티브 window.confirm은 문구·색·포커스를 제어할 수 없고
 // WebView에서 시스템 폰트로 튀어나와 톤이 깨진다(DESIGN §9). 두 곳이 이 하나를 나눠 쓴다.
 const confirmDialog = $('#confirmDialog');
+const CONFIRM_DISMISSED = Symbol('confirm-dismissed');
 let settleConfirm = null;
+let confirmDismissAnswer = false;
 
 // 답이 하나 나오면 끝이다. 두 번 불려도(닫기 버튼 뒤에 close 이벤트가 따라오는 등)
 // 처음 값만 쓰고 나머지는 흘린다.
 function settleConfirmWith(answer) {
   const resolve = settleConfirm;
   settleConfirm = null;
+  confirmDismissAnswer = false;
   resolve?.(answer);
 }
 
-function askConfirm({ icon = '↻', title, text, confirmLabel, cancelLabel }) {
-  settleConfirmWith(false); // 앞의 물음이 남아 있으면 취소로 접는다
+function settleConfirmAsDismissed() {
+  settleConfirmWith(confirmDismissAnswer);
+}
+
+function askConfirm({ icon = '↻', title, text, confirmLabel, cancelLabel, dismissAnswer = false }) {
+  settleConfirmAsDismissed(); // 앞의 물음이 남아 있으면 각 물음의 안전한 기본값으로 접는다
+  confirmDismissAnswer = dismissAnswer;
   $('#confirmIcon').textContent = icon;
   $('#confirmTitle').textContent = title;
   $('#confirmText').textContent = text;
@@ -693,10 +745,10 @@ function askConfirm({ icon = '↻', title, text, confirmLabel, cancelLabel }) {
 // 답은 버튼 핸들러에서 바로 정한다. dialog의 close 이벤트에 기대면 그 이벤트를 흘리는
 // WebView에서 물음이 영영 끝나지 않아 되돌리기·새 게임이 조용히 멈춘다.
 // cancel/close는 Esc·백드롭으로 닫힌 경우만 받는 안전망이다.
-$('#confirmCancelButton').addEventListener('click', () => { confirmDialog.close(); settleConfirmWith(false); });
-$('#confirmOkButton').addEventListener('click', () => { confirmDialog.close(); settleConfirmWith(true); });
-confirmDialog.addEventListener('cancel', () => settleConfirmWith(false));
-confirmDialog.addEventListener('close', () => settleConfirmWith(false));
+$('#confirmCancelButton').addEventListener('click', () => { settleConfirmWith(false); confirmDialog.close(); });
+$('#confirmOkButton').addEventListener('click', () => { settleConfirmWith(true); confirmDialog.close(); });
+confirmDialog.addEventListener('cancel', settleConfirmAsDismissed);
+confirmDialog.addEventListener('close', settleConfirmAsDismissed);
 
 function prepareModeSelection() {
   stopTimedClock();
@@ -718,62 +770,71 @@ function prepareModeSelection() {
   renderBoard();
 }
 
-// Android의 시스템 뒤로가기는 <dialog>의 cancel 이벤트보다 브라우저 히스토리를
-// 먼저 움직이는 WebView가 있다. 모드 선택 중에만 같은 주소의 보호 항목을 하나 쌓고,
-// 뒤로가기가 들어오면 즉시 다시 쌓아 화면을 유지한다. 모드를 고르면 보호 항목을
-// 되돌려 평소의 뒤로가기는 그대로 동작하게 한다.
-const MODE_PICKER_HISTORY_KEY = 'sonjupangModePicker';
-let modePickerHistoryPhase = 'idle';
-
-function modePickerGuardState() {
-  const current = history.state;
-  const base = current && typeof current === 'object' ? current : {};
-  return { ...base, [MODE_PICKER_HISTORY_KEY]: true };
-}
-
-function blockBackWhileChoosingMode() {
-  if (!history.state?.[MODE_PICKER_HISTORY_KEY]) {
-    history.pushState(modePickerGuardState(), '');
-  }
-  modePickerHistoryPhase = 'armed';
-}
-
-function releaseModePickerBackBlock() {
-  if (modePickerHistoryPhase !== 'armed') return;
-  modePickerHistoryPhase = 'releasing';
-  if (history.state?.[MODE_PICKER_HISTORY_KEY]) history.back();
-  else modePickerHistoryPhase = 'idle';
-}
-
-addEventListener('popstate', () => {
-  if (modeDialog.open) {
-    history.pushState(modePickerGuardState(), '');
-    modePickerHistoryPhase = 'armed';
-    $('#timedModeButton').focus({ preventScroll: true });
+async function startUnlimitedFromSelection() {
+  const resumeState = unlimitedResumeState({ score: unlimitedProgressScore });
+  if (resumeState === UNLIMITED_RESUME_STATES.NONE) {
+    startGame(GAME_MODES.UNLIMITED);
     return;
   }
-  modePickerHistoryPhase = 'idle';
+
+  if (resumeState === UNLIMITED_RESUME_STATES.MAX) {
+    const startOver = await askConfirm({
+      icon: '★',
+      title: '이미 만점까지 도착했어요!',
+      text: `${UNLIMITED_MAX_SCORE.toLocaleString('ko-KR')}점은 만점이라 이어할 수 없어요. 0점부터 새로 시작할까요?`,
+      confirmLabel: '새로 시작',
+      cancelLabel: '모드 다시 고르기',
+    });
+    if (!startOver) {
+      showModePicker();
+      return;
+    }
+    resetUnlimitedProgress();
+    startGame(GAME_MODES.UNLIMITED);
+    return;
+  }
+
+  const resume = await askConfirm({
+    icon: '↻',
+    title: `${unlimitedProgressScore.toLocaleString('ko-KR')}점부터 이어할까요?`,
+    text: '새 게임판에서 지난 점수를 이어서 할 수 있어요',
+    confirmLabel: '이어하기',
+    cancelLabel: '처음부터',
+    dismissAnswer: CONFIRM_DISMISSED,
+  });
+  if (resume === CONFIRM_DISMISSED) {
+    showModePicker();
+    return;
+  }
+  if (resume) {
+    startGame(GAME_MODES.UNLIMITED, unlimitedProgressScore);
+  } else {
+    resetUnlimitedProgress();
+    startGame(GAME_MODES.UNLIMITED);
+  }
+}
+
+const modeSelection = createModeSelectionController({
+  dialog: modeDialog,
+  onSelect: (mode, { usedDefault }) => {
+    if (mode === GAME_MODES.UNLIMITED) {
+      startUnlimitedFromSelection();
+      return;
+    }
+    startGame(GAME_MODES.TIMED);
+    if (usedDefault) toast('3분 도전으로 바로 시작했어요', 'success');
+  },
 });
 
 function showModePicker() {
   prepareModeSelection();
   renderRankings();
-  if (!modeDialog.open) modeDialog.showModal();
-  blockBackWhileChoosingMode();
+  modeSelection.begin();
   $('#timedModeButton').focus();
 }
 
-modeDialog.addEventListener('cancel', (event) => event.preventDefault());
-$('#timedModeButton').addEventListener('click', () => {
-  modeDialog.close();
-  releaseModePickerBackBlock();
-  startGame(GAME_MODES.TIMED);
-});
-$('#unlimitedModeButton').addEventListener('click', () => {
-  modeDialog.close();
-  releaseModePickerBackBlock();
-  startGame(GAME_MODES.UNLIMITED);
-});
+$('#timedModeButton').addEventListener('click', () => modeSelection.choose(GAME_MODES.TIMED));
+$('#unlimitedModeButton').addEventListener('click', () => modeSelection.choose(GAME_MODES.UNLIMITED));
 
 $('#hintButton').addEventListener('click', showHint);
 $('#restartButton').addEventListener('click', showModePicker);
@@ -781,7 +842,7 @@ $('#newGameButton').addEventListener('click', async () => {
   const ok = await askConfirm({
     icon: '↻',
     title: '새 게임을 시작할까요?',
-    text: '지금 점수는 사라지고 처음부터 시작해요',
+    text: '게임 방법을 다시 고를 수 있어요',
     confirmLabel: '새 게임',
     cancelLabel: '계속하기',
   });
@@ -1300,7 +1361,7 @@ async function initializeApp() {
   // 저장소를 먼저 읽어 첫 모드 선택 화면에 사진 블록과 랭킹이 함께 보이게 한다.
   // 저장이 늦을 때는 기본 블록·빈 랭킹으로 먼저 열고, 도착한 값만 나중에 다시 그린다.
   let prepared = false;
-  const ready = Promise.all([loadStoredBlocks(), loadTimedRankingOptions()]).then(() => {
+  const ready = Promise.all([loadStoredBlocks(), loadTimedRankingOptions(), loadUnlimitedProgressOption()]).then(() => {
     // 아래 race가 타임아웃으로 끝난 뒤에 사진이 도착한 경우에만 다시 그린다.
     if (prepared) { renderSlots(); renderBoard(); renderRankings(); }
   });

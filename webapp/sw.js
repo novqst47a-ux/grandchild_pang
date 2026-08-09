@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v17'; // v17: 모드 선택 중 모바일 뒤로가기 방지
+const CACHE = 'sonjupang-mvp-v19'; // v19: 무제한 모드 마지막 점수 이어하기
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',
@@ -20,6 +20,7 @@ const ASSETS = [
   './src/app.js',
   './src/game-core.js',
   './src/game-modes.js',
+  './src/mode-selection.js',
   './src/custom-blocks.js',
   './src/install-prompt.js',
   './src/storage.js',
