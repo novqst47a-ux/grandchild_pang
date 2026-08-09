@@ -42,9 +42,9 @@
         <strong id="messageTitle">같은 그림 3개를 모아 보세요</strong>
         <span id="messageText">블록을 누르고, 옆 블록을 눌러 보세요</span>
       </div>
-      <div class="score-card moves-card" id="movesCard">
-        <span class="score-label">남은 이동</span>
-        <strong id="movesValue">20</strong>
+      <div class="score-card status-card" id="statusCard">
+        <span class="score-label" id="statusLabel">게임 모드</span>
+        <strong id="statusValue">선택</strong>
       </div>
     </section>
 
@@ -61,10 +61,15 @@
         </div>
         <div class="board-overlay" id="boardOverlay" hidden>
           <div class="overlay-card">
-            <span class="overlay-kicker">참 잘했어요!</span>
-            <h1>게임 끝</h1>
+            <span class="overlay-kicker" id="overlayKicker">참 잘했어요!</span>
+            <h1 id="overlayTitle">게임 끝</h1>
             <p>최종 점수 <strong id="finalScore">0점</strong></p>
-            <button class="primary-button" id="restartButton" type="button">다시 시작</button>
+            <p class="result-message" id="resultMessage"></p>
+            <section class="ranking-panel result-ranking" id="resultRankingPanel" aria-labelledby="resultRankingTitle" hidden>
+              <h2 id="resultRankingTitle">3분 도전 최고 기록</h2>
+              <ol class="ranking-list" id="resultRankingList"></ol>
+            </section>
+            <button class="primary-button" id="restartButton" type="button">모드 고르고 다시 시작</button>
           </div>
         </div>
       </div>
@@ -77,6 +82,32 @@
 
     <p class="sr-only" id="liveStatus" aria-live="polite"></p>
   </main>
+
+  <!-- 첫 진입과 새 게임 때 반드시 모드를 고른다. 기록을 남기지 않는 무제한과
+       브라우저 안에 1~3위를 보관하는 3분 도전을 한 화면에서 비교할 수 있다. -->
+  <dialog class="mode-dialog" id="modeDialog" aria-labelledby="modeTitle">
+    <div class="mode-content">
+      <span class="mode-kicker">게임을 시작해 볼까요?</span>
+      <h2 id="modeTitle">게임 방법을 골라 주세요</h2>
+      <p class="mode-lead">원하는 방법을 누르면 바로 시작해요</p>
+      <div class="mode-actions">
+        <button class="mode-choice timed" id="timedModeButton" type="button">
+          <span class="mode-icon" aria-hidden="true">⏱</span>
+          <strong>3분 도전</strong>
+          <span>3분 안에 최고 점수를 내요<br>1~3위 기록을 저장해요</span>
+        </button>
+        <button class="mode-choice unlimited" id="unlimitedModeButton" type="button">
+          <span class="mode-icon" aria-hidden="true">∞</span>
+          <strong>무제한</strong>
+          <span>횟수와 시간 제한 없이 해요<br>기록은 남지 않아요</span>
+        </button>
+      </div>
+      <section class="ranking-panel" aria-labelledby="modeRankingTitle">
+        <h3 id="modeRankingTitle">3분 도전 최고 기록</h3>
+        <ol class="ranking-list" id="modeRankingList"></ol>
+      </section>
+    </div>
+  </dialog>
 
   <!-- 꾸미기 모달. DESIGN §6 — 한 번에 한 스텝, 립 없는 플랫 면, 하단 고정 버튼 1개.
        form method="dialog"를 쓰지 않는다. 그 안의 버튼은 전부 모달을 닫아 버려
