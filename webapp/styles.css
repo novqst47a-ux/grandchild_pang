@@ -411,6 +411,7 @@ dialog { max-width: none; }
 .mode-choice .mode-icon { display: grid; place-items: center; width: 58px; height: 58px; color: white; background: var(--carrot-deep); border-radius: 50%; font-size: 1.895rem; line-height: 1; }
 .mode-choice.unlimited .mode-icon { background: var(--success); }
 .mode-choice strong { font-size: var(--t-section); }
+.mode-default-label { display: inline-block; padding: 2px 7px; color: white; background: var(--carrot-deep); border-radius: var(--r-full); font-size: var(--t-caption); vertical-align: middle; }
 .mode-choice > span:last-child { color: var(--ink-soft); font-size: var(--t-body-s); }
 .ranking-panel { margin-top: 20px; padding: 14px 16px; background: var(--surface-warm); border-radius: var(--r-md); }
 .ranking-panel h2, .ranking-panel h3 { margin: 0 0 8px; font-size: var(--t-body); text-align: center; }
