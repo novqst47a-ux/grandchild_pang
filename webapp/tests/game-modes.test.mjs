@@ -4,11 +4,14 @@ import {
   GAME_MODES,
   UNLIMITED_CHECKPOINT,
   UNLIMITED_MAX_SCORE,
+  UNLIMITED_RESUME_STATES,
   addTimedRanking,
   addUnlimitedScore,
   formatGameScore,
   formatRemainingTime,
+  normalizeUnlimitedProgress,
   normalizeTimedRankings,
+  unlimitedResumeState,
 } from '../src/game-modes.js';
 
 test('3분 타이머를 분:초 형식으로 표시한다', () => {
@@ -29,14 +32,27 @@ test('무제한 점수는 9,999점에서 계속 여부를 확인하도록 멈춘
   });
 });
 
-test('승인 후 99,999점에서 MAX가 되고 점수만 고정된다', () => {
+test('승인 후 99,999점에서 만점이 되고 점수만 고정된다', () => {
   const result = addUnlimitedScore(99_990, 30, true);
   assert.equal(result.score, UNLIMITED_MAX_SCORE);
   assert.equal(result.awarded, 9);
   assert.equal(result.maxReached, true);
   assert.equal(result.atMax, true);
   assert.equal(addUnlimitedScore(result.score, 1_000, true).score, UNLIMITED_MAX_SCORE);
-  assert.equal(formatGameScore(result.score, GAME_MODES.UNLIMITED), 'MAX');
+  assert.equal(formatGameScore(result.score, GAME_MODES.UNLIMITED), '만점');
+});
+
+test('무제한 직전 점수는 이어하기 가능한 값으로 정규화한다', () => {
+  assert.equal(normalizeUnlimitedProgress({ score: 1_230 }), 1_230);
+  assert.equal(unlimitedResumeState({ score: 1_230 }), UNLIMITED_RESUME_STATES.AVAILABLE);
+  assert.equal(normalizeUnlimitedProgress({ score: 0 }), null);
+  assert.equal(normalizeUnlimitedProgress({ score: '깨진 값' }), null);
+  assert.equal(unlimitedResumeState(null), UNLIMITED_RESUME_STATES.NONE);
+});
+
+test('무제한 만점 기록은 만점으로 고정하고 이어하기를 막는다', () => {
+  assert.equal(normalizeUnlimitedProgress({ score: 120_000 }), UNLIMITED_MAX_SCORE);
+  assert.equal(unlimitedResumeState({ score: UNLIMITED_MAX_SCORE }), UNLIMITED_RESUME_STATES.MAX);
 });
 
 test('시간 제한 기록은 점수순 상위 3개만 정규화한다', () => {

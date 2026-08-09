@@ -8,6 +8,12 @@ export const UNLIMITED_CHECKPOINT = 9_999;
 export const UNLIMITED_MAX_SCORE = 99_999;
 export const RANKING_LIMIT = 3;
 
+export const UNLIMITED_RESUME_STATES = Object.freeze({
+  NONE: 'none',
+  AVAILABLE: 'available',
+  MAX: 'max',
+});
+
 export function formatRemainingTime(seconds) {
   const safeSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
   const minutes = Math.floor(safeSeconds / 60);
@@ -15,12 +21,12 @@ export function formatRemainingTime(seconds) {
 }
 
 export function formatGameScore(score, mode) {
-  if (mode === GAME_MODES.UNLIMITED && score >= UNLIMITED_MAX_SCORE) return 'MAX';
+  if (mode === GAME_MODES.UNLIMITED && score >= UNLIMITED_MAX_SCORE) return '만점';
   return Math.max(0, Math.floor(Number(score) || 0)).toLocaleString('ko-KR');
 }
 
 // 무제한 모드는 9,999점에서 반드시 한 번 멈춘다. 사용자가 계속하기를 고른 뒤에만
-// 다음 구간으로 올라가며, MAX 뒤에도 판은 계속되지만 점수는 더 늘지 않는다.
+// 다음 구간으로 올라가며, 만점 뒤에도 판은 계속되지만 점수는 더 늘지 않는다.
 export function addUnlimitedScore(currentScore, gainedScore, extended) {
   const current = Math.max(0, Math.floor(Number(currentScore) || 0));
   const gained = Math.max(0, Math.floor(Number(gainedScore) || 0));
@@ -33,6 +39,20 @@ export function addUnlimitedScore(currentScore, gainedScore, extended) {
     maxReached: extended && current < UNLIMITED_MAX_SCORE && score === UNLIMITED_MAX_SCORE,
     atMax: score === UNLIMITED_MAX_SCORE,
   };
+}
+
+export function normalizeUnlimitedProgress(value) {
+  const score = Math.floor(Number(value?.score));
+  if (!Number.isSafeInteger(score) || score <= 0) return null;
+  return Math.min(score, UNLIMITED_MAX_SCORE);
+}
+
+export function unlimitedResumeState(value) {
+  const score = normalizeUnlimitedProgress(value);
+  if (score === null) return UNLIMITED_RESUME_STATES.NONE;
+  return score >= UNLIMITED_MAX_SCORE
+    ? UNLIMITED_RESUME_STATES.MAX
+    : UNLIMITED_RESUME_STATES.AVAILABLE;
 }
 
 function normalizedRanking(entry) {
