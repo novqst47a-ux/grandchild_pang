@@ -28,8 +28,8 @@ test('나무는 독립된 새싹 상태로 시작하고 성장 규칙은 고정�
   });
   assert.ok(Object.isFrozen(TREE_RULES));
   assert.equal(TREE_RULES.gameSeconds, 180);
-  assert.equal(TREE_RULES.feverBonusSeconds, 60);
-  assert.equal(TREE_RULES.feverSeconds, 15);
+  assert.equal(TREE_RULES.feverBonusSeconds, 30);
+  assert.equal(TREE_RULES.feverSeconds, 7);
   assert.equal(TREE_RULES.fruitRespawnMilliseconds, 250);
   const first = createTreeState();
   first.fruitSlots.push(3);
@@ -106,7 +106,7 @@ test('성장과 수확은 입력 상태와 슬롯 배열을 변경하지 않는�
   assert.equal(ready.totalHarvested, 0);
   assert.deepEqual(collected.state.fruitReadyAt, [0, 0, 1250, 0, 0]);
   assert.equal(collected.state.harvestCount, 1);
-  assert.equal(collected.awarded, 200);
+  assert.equal(collected.awarded, 10);
 });
 
 test('성장 중이거나 잘못된 인덱스와 시각에는 보너스를 주지 않는다', () => {
@@ -126,14 +126,14 @@ test('같은 열매는 250ms 뒤에 다시 수확할 수 있고 다른 열매는
   for (const now of [1000, 1100, 1249]) {
     assert.deepEqual(harvestTreeFruit(collected, 4, now), { state: collected, awarded: 0 });
   }
-  assert.equal(harvestTreeFruit(collected, 3, 1000).awarded, 200);
+  assert.equal(harvestTreeFruit(collected, 3, 1000).awarded, 10);
   const respawned = harvestTreeFruit(collected, 4, 1250);
-  assert.equal(respawned.awarded, 200);
+  assert.equal(respawned.awarded, 10);
   assert.equal(respawned.state.harvestCount, 2);
   assert.equal(respawned.state.fruitReadyAt[4], 1500);
 });
 
-test('열매는 재생되어 다섯 개를 넘어도 피버를 유지하고 수확마다 200점을 준다', () => {
+test('열매는 재생되어 다섯 개를 넘어도 피버를 유지하고 수확마다 10점을 준다', () => {
   let state = grow(100);
   let awarded = 0;
   for (let count = 0; count < 17; count += 1) {
@@ -144,7 +144,7 @@ test('열매는 재생되어 다섯 개를 넘어도 피버를 유지하고 수�
     assert.equal(state.cycle, 1);
     assert.equal(state.fruitSlots.length, 5);
   }
-  assert.equal(awarded, 3_400);
+  assert.equal(awarded, 170);
   assert.equal(state.harvestCount, 17);
   assert.equal(state.totalHarvested, 17);
   assert.deepEqual(finishTreeHarvest(state), { ...createTreeState(), cycle: 2, totalHarvested: 17 });
@@ -163,32 +163,32 @@ test('피버 종료만 다음 새싹으로 바꾸며 수확이 없어도 종료�
   assert.strictEqual(finishTreeHarvest(state), state);
 });
 
-test('진행 게이지는 성장 단계와 피버의 남은 15초를 보여 준다', () => {
+test('진행 게이지는 성장 단계와 피버의 남은 7초를 보여 준다', () => {
   assert.deepEqual(getTreeProgress(grow(14)), { value: 14, max: 15, label: '새싹 키우기' });
   assert.deepEqual(getTreeProgress(grow(15)), { value: 0, max: 20, label: '어린 나무 키우기' });
   assert.deepEqual(getTreeProgress(grow(34)), { value: 19, max: 20, label: '어린 나무 키우기' });
   assert.deepEqual(getTreeProgress(grow(35)), { value: 0, max: 5, label: '열매 맺기' });
   assert.deepEqual(getTreeProgress(grow(55)), { value: 4, max: 5, label: '열매 맺기' });
   const ready = grow(60);
-  assert.deepEqual(getTreeProgress(ready), { value: 15, max: 15, label: '수확 피버 남은 시간' });
-  assert.deepEqual(getTreeProgress(harvestTreeFruit(ready, 2, 1000).state, 9), { value: 9, max: 15, label: '수확 피버 남은 시간' });
+  assert.deepEqual(getTreeProgress(ready), { value: 7, max: 7, label: '수확 피버 남은 시간' });
+  assert.deepEqual(getTreeProgress(harvestTreeFruit(ready, 2, 1000).state, 4), { value: 4, max: 7, label: '수확 피버 남은 시간' });
   assert.equal(getTreeProgress(ready, 0).value, 0);
   assert.equal(getTreeProgress(ready, -1).value, 0);
-  assert.equal(getTreeProgress(ready, 99).value, 15);
+  assert.equal(getTreeProgress(ready, 99).value, 7);
 });
 
-test('다섯 번째 열매로 피버에 진입하는 성장 처리에서만 60초를 더한다', () => {
+test('다섯 번째 열매로 피버에 진입하는 성장 처리에서만 30초를 더한다', () => {
   const initial = freezeState(createTreeState());
   const growing = freezeState(grow(59));
   assert.equal(getTreeTimeBonus(initial, growing), 0);
   assert.equal(getTreeTimeBonus(growing, growing), 0);
 
   const ready = freezeState(addTreeGrowth(growing, [3]));
-  assert.equal(getTreeTimeBonus(growing, ready), 60);
+  assert.equal(getTreeTimeBonus(growing, ready), 30);
   assert.equal(getTreeTimeBonus(ready, ready), 0);
   assert.equal(getTreeTimeBonus(ready, addTreeGrowth(ready, [0, 1, 2])), 0);
   assert.equal(getTreeTimeBonus(ready, harvestTreeFruit(ready, 2).state), 0);
-  assert.equal(getTreeTimeBonus(initial, grow(300)), 60);
+  assert.equal(getTreeTimeBonus(initial, grow(300)), 30);
 });
 
 test('나무를 두 번 완성해도 각 주기마다 피버 시작 때 한 번씩만 시간을 준다', () => {
@@ -197,7 +197,7 @@ test('나무를 두 번 완성해도 각 주기마다 피버 시작 때 한 번�
   for (let cycle = 1; cycle <= 2; cycle += 1) {
     const ready = addTreeGrowth(state, Array(60).fill(0));
     bonusSeconds += getTreeTimeBonus(state, ready);
-    assert.equal(bonusSeconds, cycle * 60);
+    assert.equal(bonusSeconds, cycle * 30);
     state = ready;
     for (let index = 0; index < 5; index += 1) {
       const nextState = harvestTreeFruit(state, index).state;
@@ -210,7 +210,7 @@ test('나무를 두 번 완성해도 각 주기마다 피버 시작 때 한 번�
     assert.equal(state.cycle, cycle + 1);
     assert.equal(state.phase, 'growing');
   }
-  assert.equal(bonusSeconds, 120);
+  assert.equal(bonusSeconds, 60);
 });
 
 test('다른 나무 주기를 연결하거나 잘못된 상태를 전달해도 추가 시간을 주지 않는다', () => {

@@ -138,7 +138,7 @@ test('시작 전 또는 잘못된 시간 값으로는 추가 시간을 줄 수 �
   assert.equal(clock.isRunning(), false);
 });
 
-test('두 번의 15초 피버 동안 기본 시간은 멈추고 반복 수확은 피버 만료 시 끝난다', () => {
+test('두 번의 7초 피버 동안 기본 시간은 멈추고 반복 수확은 피버 만료 시 끝난다', () => {
   const { clock, advance, now } = fakeClock();
   const feverClock = createGameClock({ now });
   let state = createTreeState();
@@ -165,28 +165,28 @@ test('두 번의 15초 피버 동안 기본 시간은 멈추고 반복 수확은
   clock.start(TREE_RULES.gameSeconds);
   advance(30_250);
   assert.equal(clock.remaining(), 150);
-  for (const [cycle, frozenSeconds] of [[1, 210], [2, 260]]) {
+  for (const [cycle, frozenSeconds] of [[1, 180], [2, 200]]) {
     updateTree(addTreeGrowth(state, Array(60).fill(0)));
     assert.equal(clock.remaining(), frozenSeconds);
     assert.equal(clock.isRunning(), false);
-    assert.equal(bonuses, cycle * 60);
+    assert.equal(bonuses, cycle * 30);
 
     // 남은 연쇄를 정리할 때는 기본 시계만 멈추고 아직 피버 시계는 시작하지 않는다.
     advance(700);
     assert.equal(clock.remaining(), frozenSeconds);
     feverClock.start(TREE_RULES.feverSeconds);
-    for (let index = 0; index < 10; index += 1) {
+    for (let index = 0; index < 5; index += 1) {
       advance(1000);
       updateTree(state);
       assert.equal(clock.remaining(), frozenSeconds);
-      assert.equal(bonuses, cycle * 60);
+      assert.equal(bonuses, cycle * 30);
       assert.equal(collect(index % TREE_RULES.fruitCount), true);
       assert.equal(clock.remaining(), frozenSeconds);
       assert.equal(clock.isRunning(), false);
       assert.equal(state.phase, 'harvest');
     }
-    assert.equal(state.harvestCount, 10);
-    advance(4999);
+    assert.equal(state.harvestCount, 5);
+    advance(1999);
     assert.equal(feverClock.remaining(), 1);
     assert.equal(collect(0), true);
 
@@ -204,9 +204,9 @@ test('두 번의 15초 피버 동안 기본 시간은 멈추고 반복 수확은
     if (cycle === 1) advance(10_000);
   }
 
-  assert.equal(bonuses, 120);
-  assert.equal(state.totalHarvested, 22);
-  advance(259_749);
+  assert.equal(bonuses, 60);
+  assert.equal(state.totalHarvested, 12);
+  advance(199_749);
   assert.equal(clock.remaining(), 1);
   advance(1);
   assert.equal(clock.remaining(), 0);
