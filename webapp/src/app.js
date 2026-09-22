@@ -114,7 +114,7 @@ let score = 0;
 let gameMode = null;
 let treeState = createTreeState();
 let gameSession = 0;
-const treeView = createTreeView({ panel: $('#treePanel'), harvestOverlay: $('#harvestOverlay'), onHarvest: collectTreeFruit });
+const treeView = createTreeView({ panel: $('#treePanel'), scene: $('#treeScene'), harvestOverlay: $('#harvestOverlay'), onHarvest: collectTreeFruit });
 let remainingSeconds = TIMED_GAME_SECONDS;
 const gameClock = createGameClock();
 const feverClock = createGameClock();
@@ -184,7 +184,7 @@ function finishHarvestFever() {
   remainingSeconds = gameClock.remaining();
   updateStats();
   renderBoard();
-  setMessage(`피버 끝! 열매 ${count}개 수확했어요`, `수확 보너스 ${(count * TREE_RULES.harvestBonus).toLocaleString('ko-KR')}점 · 다음 나무를 키워 보세요`);
+  setMessage(`피버 끝! 열매 ${count}개 수확했어요`, `수확 보너스 ${(count * TREE_RULES.harvestBonus).toLocaleString('ko-KR')}점 · 다음 나무를 키워 보세요`, true);
   if (count > 0) {
     playMatchSound(3);
     showCelebration(3, photoSlot);
@@ -212,10 +212,11 @@ function startHarvestFever() {
   setMessage('15초 수확 피버!', '열매를 최대한 많이 따 보세요 · 본 게임 시간은 멈춰요');
 }
 
-function setMessage(title, detail = '') {
+function setMessage(title, detail = '', treeNotice = false) {
   messageTitle.textContent = title;
   messageText.textContent = detail;
   liveStatus.textContent = detail ? `${title} ${detail}` : title;
+  if (treeNotice && gameMode === GAME_MODES.TREE) toast(detail ? `${title} · ${detail}` : title);
 }
 
 // tone은 '' / 'success' / 'danger'. DESIGN §9 — 잘 됐는지 안 됐는지를 색으로도 알린다.
@@ -288,7 +289,7 @@ function refreshTimedClock() {
       statusCard.classList.remove('pulse');
       void statusCard.offsetWidth;
       statusCard.classList.add('pulse');
-      setMessage('이제 30초 남았어요', '천천히 끝까지 해 보세요');
+      setMessage('이제 30초 남았어요', '천천히 끝까지 해 보세요', true);
     }
   }
   if (next === 0) endGame('time');
@@ -538,7 +539,7 @@ async function chooseTile(position) {
   }
   if (!areAdjacent(selected, position)) {
     selected = position;
-    setMessage('이 블록을 골랐어요', '바로 옆 블록하고만 바꿀 수 있어요');
+    setMessage('이 블록을 골랐어요', '바로 옆 블록하고만 바꿀 수 있어요', true);
     renderBoard();
     return;
   }
@@ -561,7 +562,7 @@ async function trySwap(from, to) {
   if (!matches.size) {
     board = original;
     transientClasses = new Map([[keyOf(from.row, from.col), 'invalid'], [keyOf(to.row, to.col), 'invalid']]);
-    setMessage('여기는 안 움직여요', '다른 곳을 눌러 보세요. 점수는 그대로예요');
+    setMessage('여기는 안 움직여요', '다른 곳을 눌러 보세요. 점수는 그대로예요', true);
     playTone(145, .09);
     buzz(20); // 소리를 끈 어르신에게도 피드백이 남도록(계획 A6)
     renderBoard();
@@ -576,7 +577,7 @@ async function trySwap(from, to) {
   await processMatches(session);
   if (session !== gameSession || gameOver) return;
   if (!findValidMoves(board).length) {
-    setMessage('새로 섞어 드릴게요', '맞출 수 있는 자리를 만들고 있어요');
+    setMessage('새로 섞어 드릴게요', '맞출 수 있는 자리를 만들고 있어요', true);
     await sleep(450);
     if (session !== gameSession || gameOver) return;
     board = reshuffle(board);
@@ -778,7 +779,7 @@ function showHint() {
   const move = findValidMoves(board)[0];
   if (!move) return;
   hintKeys = new Set(move.map(({ row, col }) => keyOf(row, col)));
-  setMessage('여기를 옮겨 보세요', '알맞은 두 블록을 알려 드려요');
+  setMessage('여기를 옮겨 보세요', '알맞은 두 블록을 알려 드려요', true);
   renderBoard();
   setTimeout(() => { hintKeys.clear(); renderBoard(); }, 1800);
 }

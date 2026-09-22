@@ -139,18 +139,22 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
    판 전체를 못 누르게 막고 밝기로 "지금은 기다리는 중"을 보인다. 문구는 띄우지 않는다. */
 .board.busy { pointer-events: none; filter: brightness(.96); }
 
-/* 나무 키우기: 넓은 화면의 왼쪽 정원, 작은 화면의 게임판 위 정원. */
-.tree-mode { width: min(100%, 1080px); }
-.tree-mode .game-area { display: flex; align-items: center; justify-content: center; gap: 24px; }
+/* 나무 키우기: 점수와 시간 사이에 나무, 성장 정보 아래에 퍼즐판을 둔다. */
+.tree-mode .scoreboard { display: grid; grid-template-columns: 112px minmax(0, 1fr) 112px; max-width: 672px; margin: 0 auto 8px; }
+.tree-mode .message-card { display: none; }
+.tree-mode .game-area { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .tree-mode .board-wrap { width: min(100%, 672px); min-width: 0; margin: 0; }
 .tree-mode .board { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(5, auto); }
 .tree-mode .tile { width: 100%; height: auto; min-height: 0; aspect-ratio: 1; }
-.tree-mode .help-row { max-width: 672px; margin-left: auto; }
+.tree-mode .help-row { max-width: 672px; margin-inline: auto; }
 .tree-mode .status-card .mode-name { font-size: var(--t-body-s); white-space: nowrap; }
-.tree-panel { flex: 0 0 248px; min-width: 0; padding: 12px; background: var(--surface); border: 3px solid var(--success); border-radius: var(--r-xl); box-shadow: 0 6px 0 var(--success-lip); }
-.tree-panel[hidden], .tree-fruit[hidden], .harvest-overlay[hidden] { display: none; }
+.tree-panel { width: 100%; max-width: 672px; min-width: 0; padding: 12px 16px; background: var(--surface); border: 3px solid var(--success); border-radius: var(--r-xl); box-shadow: 0 6px 0 var(--success-lip); }
+.tree-panel[hidden], .tree-scene[hidden], .tree-fruit[hidden], .harvest-overlay[hidden] { display: none; }
+.tree-content { display: grid; grid-template-columns: minmax(92px, .28fr) minmax(0, 1fr); gap: 16px; align-items: center; }
+.tree-summary { text-align: center; }
+.tree-details { min-width: 0; }
 .tree-cycle { display: inline-block; margin-bottom: 5px; padding: 2px 8px; border-radius: var(--r-full); background: var(--success-tint); color: var(--success-lip); font-size: var(--t-caption); font-weight: 800; text-align: center; }
-.tree-scene { position: relative; width: 100%; aspect-ratio: 1; margin: 0 auto 8px; isolation: isolate; background: radial-gradient(ellipse at 50% 64%, var(--success-tint), transparent 70%); }
+.tree-scene { position: relative; width: min(100%, 152px); aspect-ratio: 1; margin: 0 auto; isolation: isolate; background: radial-gradient(ellipse at 50% 64%, var(--success-tint), transparent 70%); }
 .tree-art { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-select: none; user-select: none; }
 .tree-art.tree-grown { animation: tree-grow var(--m-celebrate) var(--e-bounce); }
 .tree-fruits { position: absolute; inset: 0; }
@@ -173,18 +177,18 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
 .tree-fruit.is-regrowing .tree-fruit-bonus { opacity: 1; }
 .tree-growth-pop { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); white-space: nowrap; padding: 3px 10px; border-radius: var(--r-full); background: var(--success); color: white; font-size: var(--t-body-s); font-weight: 900; opacity: 0; pointer-events: none; }
 .tree-growth-pop.play { animation: tree-point 1100ms var(--e-exit) forwards; }
-.tree-stage-line { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.tree-stage-line { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .tree-stage-line strong { font-size: var(--t-body); color: var(--success-lip); }
 .tree-stage-line span { font-size: var(--t-caption); font-weight: 800; }
-.tree-progress { display: block; width: 100%; height: 14px; margin-top: 9px; overflow: hidden; appearance: none; border: 1px solid var(--success); border-radius: var(--r-full); background: var(--success-tint); color: var(--success); }
+.tree-progress { display: block; width: 100%; height: 14px; margin: 0; overflow: hidden; appearance: none; border: 1px solid var(--success); border-radius: var(--r-full); background: var(--success-tint); color: var(--success); }
 .tree-progress::-webkit-progress-bar { background: var(--success-tint); }
 .tree-progress::-webkit-progress-value { background: var(--success); border-radius: var(--r-full); transition: width var(--m-slow) var(--e-standard); }
 .tree-progress::-moz-progress-bar { background: var(--success); border-radius: var(--r-full); }
 .tree-next { margin: 6px 0; font-size: var(--t-body-s); font-weight: 800; }
 .tree-harvest-total { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 0; padding-top: 6px; border-top: 1px solid var(--line); font-size: var(--t-body-s); }
 .tree-harvest-total strong { color: var(--success-lip); }
-.tree-steps { display: flex; justify-content: space-between; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
-.tree-steps li { padding: 3px 5px; border-radius: var(--r-full); color: var(--ink-soft); background: var(--surface-mute); font-size: var(--t-caption); font-weight: 800; }
+.tree-steps { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.tree-steps li { padding: 3px 8px; border-radius: var(--r-full); color: var(--ink-soft); background: var(--surface-mute); font-size: var(--t-caption); font-weight: 800; }
 .tree-steps [aria-current="step"] { color: white; background: var(--success); }
 .tree-panel.is-harvesting { border-color: var(--carrot-deep); box-shadow: 0 6px 0 var(--carrot-lip); background: var(--surface-warm); }
 .is-harvesting .tree-stage-line strong { color: var(--carrot-deep); }
@@ -203,29 +207,15 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
 @keyframes tree-grow { 0% { transform: scale(.85); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
 @keyframes tree-point { 0% { opacity: 0; translate: 0 6px; } 15%, 65% { opacity: 1; } 100% { opacity: 0; translate: 0 -20px; } }
 @keyframes fruit-shine { 50% { box-shadow: 0 0 0 5px rgba(242, 183, 5, .32); } }
-@media (min-width: 961px) {
-  .tree-mode { --tile-size: min(120px, calc((100vw - 376px) / 5)); }
-}
-@media (max-width: 960px) {
-  .tree-mode { width: min(100%, 760px); }
-  .tree-mode .game-area { flex-direction: column; gap: 14px; }
-  .tree-mode .help-row { margin-inline: auto; }
-  .tree-panel { flex: auto; width: 100%; max-width: 672px; padding: 8px 12px; }
-  .tree-content { display: grid; grid-template-columns: minmax(104px, .42fr) minmax(0, 1fr); gap: 12px; align-items: center; }
-  .tree-scene { max-width: 148px; margin-block: 0; }
-  .tree-details { padding-block: 0; }
-  .tree-steps { margin-top: 6px; justify-content: center; gap: 10px; }
-  .tree-stage-line { flex-wrap: wrap; }
-}
 @media (max-width: 560px) {
+  .tree-mode .scoreboard { grid-template-columns: 82px minmax(0, 1fr) 88px; }
+  .tree-scene { width: min(100%, 128px); }
   .tree-mode .game-area { gap: 12px; }
-  .tree-panel { padding: 8px; border-radius: var(--r-lg); }
-  .tree-content { grid-template-columns: minmax(96px, .55fr) minmax(0, 1fr); gap: 8px; }
-  .tree-stage-line, .tree-harvest-total { gap: 3px; }
+  .tree-panel { padding: 10px; border-radius: var(--r-lg); }
+  .tree-content { gap: 10px; }
+  .tree-harvest-total { gap: 3px; }
   .tree-next { margin-bottom: 6px; }
   .tree-harvest-total { margin-top: 5px; padding-top: 5px; flex-wrap: wrap; }
-  .tree-steps { gap: 8px; }
-  .tree-mode .status-card { flex-basis: 88px; }
   .tree-mode .status-card .mode-name { font-size: var(--t-body-s); }
   .harvest-heading strong { font-size: var(--t-section); }
   .harvest-heading span { font-size: var(--t-caption); }
