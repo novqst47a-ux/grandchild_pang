@@ -1,4 +1,4 @@
-import { TREE_RULES, getTreeStage, getTreeProgress } from './tree-mode.js';
+import { TREE_RULES, getTreeGoals, getTreeStage, getTreeProgress } from './tree-mode.js';
 
 const STAGES = {
   sprout: { name: '새싹', alt: '흙 위에 두 잎이 돋아난 작은 새싹' },
@@ -59,6 +59,7 @@ export function createTreeView({ panel, scene, harvestOverlay, onHarvest }) {
       const stage = getTreeStage(state);
       const harvesting = state.phase === 'harvest';
       const progress = getTreeProgress(state, feverRemaining);
+      const goals = getTreeGoals(state.cycle);
       const now = Date.now();
       panel.classList.toggle('is-harvesting', harvesting);
       if (scene.dataset.stage !== stage) {
@@ -81,9 +82,9 @@ export function createTreeView({ panel, scene, harvestOverlay, onHarvest }) {
       meter.setAttribute('aria-valuetext', `${progress.label}, ${progress.value} / ${progress.max}`);
       find('treeNext').textContent = harvesting
         ? busy ? '연달아 모은 블록을 정리하고 있어요' : '열매가 다시 열려요. 많이 따 보세요'
-        : stage === 'sprout' ? `${TREE_RULES.saplingPoints - state.points}개 더 모으면 어린나무가 돼요`
-          : stage === 'sapling' ? `${TREE_RULES.maturePoints - state.points}개 더 모으면 큰 나무가 돼요`
-            : `열매 ${state.fruitSlots.length} / ${TREE_RULES.fruitCount}개 · 다음 열매까지 ${TREE_RULES.pointsPerFruit - (state.points - TREE_RULES.maturePoints) % TREE_RULES.pointsPerFruit}개`;
+        : stage === 'sprout' ? `${goals.saplingPoints - state.points}개 더 모으면 어린나무가 돼요`
+          : stage === 'sapling' ? `${goals.maturePoints - state.points}개 더 모으면 큰 나무가 돼요`
+            : `열매 ${state.fruitSlots.length} / ${TREE_RULES.fruitCount}개 · 다음 열매까지 ${goals.pointsPerFruit - (state.points - goals.maturePoints) % goals.pointsPerFruit}개`;
       harvestOverlay.querySelector('#harvestCount').textContent = `${state.harvestCount}개 수확`;
       const timer = harvestOverlay.querySelector('#harvestTimer');
       timer.textContent = `${feverRemaining}초`;
