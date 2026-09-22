@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v23'; // v23: 나무 키우기 전용 순위
+const CACHE = 'sonjupang-mvp-v24'; // v24: 나무 성장 화면 배치
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',

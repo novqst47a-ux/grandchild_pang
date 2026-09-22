@@ -42,6 +42,11 @@
         <strong id="messageTitle">같은 그림 3개를 모아 보세요</strong>
         <span id="messageText">블록을 누르고, 옆 블록을 눌러 보세요</span>
       </div>
+      <div class="tree-scene" id="treeScene" data-stage="sprout" hidden>
+        <img class="tree-art" id="treeArt" src="assets/tree/sprout.png" alt="작은 새싹" draggable="false">
+        <div class="tree-fruits" id="treeFruits" role="group" aria-label="나무의 열매"></div>
+        <span class="tree-growth-pop" id="treeGrowthPop" aria-hidden="true"></span>
+      </div>
       <div class="score-card status-card" id="statusCard">
         <span class="score-label" id="statusLabel">게임 모드</span>
         <strong id="statusValue">선택</strong>
@@ -51,14 +56,11 @@
     <section class="game-area" aria-label="매치3 게임판">
       <aside class="tree-panel" id="treePanel" aria-label="나무 성장" hidden>
         <div class="tree-content">
-          <div class="tree-scene" id="treeScene" data-stage="sprout">
-            <img class="tree-art" id="treeArt" src="assets/tree/sprout.png" alt="작은 새싹" draggable="false">
-            <div class="tree-fruits" id="treeFruits" role="group" aria-label="나무의 열매"></div>
-            <span class="tree-growth-pop" id="treeGrowthPop" aria-hidden="true"></span>
-          </div>
-          <div class="tree-details">
+          <div class="tree-summary">
             <span class="tree-cycle" id="treeCycle">첫 번째 나무</span>
             <div class="tree-stage-line"><strong id="treeStageName">새싹</strong><span id="treePointCount">0 성장</span></div>
+          </div>
+          <div class="tree-details">
             <progress class="tree-progress" id="treeProgress" max="15" value="0" aria-label="새싹 키우기"></progress>
             <p class="tree-next" id="treeNext">15개를 모으면 어린나무가 돼요</p>
             <p class="tree-harvest-total">지금까지 수확 <strong id="treeTotal">0개</strong></p>

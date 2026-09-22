@@ -7,11 +7,11 @@ const STAGES = {
 };
 
 // 열매 버튼은 재사용한다. 점수가 바뀌거나 사진을 바꿔도 키보드 포커스를 잃지 않는다.
-export function createTreeView({ panel, harvestOverlay, onHarvest }) {
+export function createTreeView({ panel, scene, harvestOverlay, onHarvest }) {
   const find = (id) => panel.querySelector(`#${id}`);
-  const scene = find('treeScene');
-  const art = find('treeArt');
-  const fruitContainer = find('treeFruits');
+  const art = scene.querySelector('#treeArt');
+  const fruitContainer = scene.querySelector('#treeFruits');
+  const pop = scene.querySelector('#treeGrowthPop');
   const harvestContainer = harvestOverlay.querySelector('#harvestFruits');
   let previousPoints = 0;
   let previousCycle = 0;
@@ -53,6 +53,7 @@ export function createTreeView({ panel, harvestOverlay, onHarvest }) {
   return {
     render({ state, active, busy, photoForSlot, slotName, feverRemaining = TREE_RULES.feverSeconds }) {
       panel.hidden = !active;
+      scene.hidden = !active;
       harvestOverlay.hidden = !active || state.phase !== 'harvest' || busy;
       if (!active) { previousCycle = 0; previousPoints = 0; return; }
       const stage = getTreeStage(state);
@@ -106,7 +107,6 @@ export function createTreeView({ panel, harvestOverlay, onHarvest }) {
           button.setAttribute('aria-label', `${index + 1}번째 ${slotName(slot)} 열매${regrowing ? ', 다시 열리고 있어요' : harvesting && interactive ? ` 수확하기, 보너스 ${TREE_RULES.harvestBonus}점` : ', 자라고 있어요'}`);
         });
       }
-      const pop = find('treeGrowthPop');
       if (state.cycle === previousCycle && state.points > previousPoints) {
         pop.textContent = `성장 +${state.points - previousPoints}`;
         pop.classList.remove('play');
