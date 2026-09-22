@@ -23,7 +23,7 @@ import {
   unlimitedResumeState,
 } from './game-modes.js';
 import { createModeSelectionController } from './mode-selection.js';
-import { TREE_RULES, createTreeState, addTreeGrowth, harvestTreeFruit, finishTreeHarvest, getTreeTimeBonus } from './tree-mode.js';
+import { TREE_RULES, createTreeState, addTreeGrowth, harvestTreeFruit, finishTreeHarvest, getTreeGoals, getTreeTimeBonus } from './tree-mode.js';
 import { createTreeView } from './tree-view.js';
 import { createGameClock } from './game-clock.js';
 import {
@@ -139,6 +139,13 @@ function blockImage(type) { return customImages[type] || defaultImages[type]; }
 function isTreeHarvest() { return gameMode === GAME_MODES.TREE && treeState.phase === 'harvest'; }
 function hasTimeLimit() { return gameMode === GAME_MODES.TIMED || gameMode === GAME_MODES.TREE; }
 
+// 150초 → "2분 30초". 어르신 안내 문구는 mm:ss 대신 말로 풀어 쓴다.
+function describeDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes}분 ${rest}초` : `${minutes}분`;
+}
+
 function renderTree() {
   const active = gameMode === GAME_MODES.TREE;
   $('.app-shell').classList.toggle('tree-mode', active);
@@ -209,7 +216,7 @@ function startHarvestFever() {
   feverTimerId = setInterval(() => {
     if (session === gameSession) refreshHarvestFever();
   }, 100);
-  setMessage(`${TREE_RULES.feverSeconds}초 수확 피버!`, '열매를 최대한 많이 따 보세요 · 본 게임 시간은 멈춰요');
+  setMessage(`${TREE_RULES.feverSeconds}초 수확 피버!`, `열매를 최대한 많이 따 보세요 · 본 게임 시간 +${getTreeGoals(treeState.cycle).feverBonusSeconds}초, 지금은 멈춰요`);
 }
 
 function setMessage(title, detail = '', treeNotice = false) {
@@ -699,7 +706,7 @@ function startGame(mode, initialScore = 0) {
   if (mode === GAME_MODES.TIMED) {
     setMessage('3분 도전을 시작해요!', '블록을 누르고, 옆 블록을 눌러 보세요');
   } else if (mode === GAME_MODES.TREE) {
-    setMessage('3분 동안 나무를 키워 볼까요?', `수확 피버마다 ${TREE_RULES.feverBonusSeconds}초를 더 받아요`);
+    setMessage(`${describeDuration(TREE_RULES.gameSeconds)} 동안 나무를 키워 볼까요?`, `첫 수확 피버에 ${TREE_RULES.feverBonusSecondsByTree[0]}초를 더 받고, 다음 피버부터는 조금씩 줄어요`);
   } else if (score > 0) {
     setMessage('지난 점수에서 이어서 해요', `${score.toLocaleString('ko-KR')}점부터 새 게임판에서 시작해요`);
   } else {

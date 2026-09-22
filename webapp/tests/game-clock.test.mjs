@@ -164,12 +164,12 @@ test('두 번의 7초 피버 동안 기본 시간은 멈추고 반복 수확은 
 
   clock.start(TREE_RULES.gameSeconds);
   advance(30_250);
-  assert.equal(clock.remaining(), 150);
-  for (const [cycle, frozenSeconds] of [[1, 180], [2, 200]]) {
+  assert.equal(clock.remaining(), 120);
+  for (const [cycle, frozenSeconds, expectedBonus] of [[1, 150, 30], [2, 160, 50]]) {
     updateTree(addTreeGrowth(state, Array(100).fill(0)));
     assert.equal(clock.remaining(), frozenSeconds);
     assert.equal(clock.isRunning(), false);
-    assert.equal(bonuses, cycle * 30);
+    assert.equal(bonuses, expectedBonus);
 
     // 남은 연쇄를 정리할 때는 기본 시계만 멈추고 아직 피버 시계는 시작하지 않는다.
     advance(700);
@@ -179,7 +179,7 @@ test('두 번의 7초 피버 동안 기본 시간은 멈추고 반복 수확은 
       advance(1000);
       updateTree(state);
       assert.equal(clock.remaining(), frozenSeconds);
-      assert.equal(bonuses, cycle * 30);
+      assert.equal(bonuses, expectedBonus);
       assert.equal(collect(index % TREE_RULES.fruitCount), true);
       assert.equal(clock.remaining(), frozenSeconds);
       assert.equal(clock.isRunning(), false);
@@ -204,11 +204,11 @@ test('두 번의 7초 피버 동안 기본 시간은 멈추고 반복 수확은 
     if (cycle === 1) advance(10_000);
   }
 
-  assert.equal(bonuses, 60);
+  assert.equal(bonuses, 50);
   assert.equal(state.totalHarvested, 12);
-  advance(199_749);
+  advance(159_749);
   assert.equal(clock.remaining(), 1);
   advance(1);
   assert.equal(clock.remaining(), 0);
-  assert.equal(clock.addSeconds(TREE_RULES.feverBonusSeconds), false);
+  assert.equal(clock.addSeconds(30), false);
 });

@@ -28,8 +28,9 @@ test('나무는 독립된 새싹 상태로 시작하고 성장 규칙은 고정�
     fruitReadyAt: [0, 0, 0, 0, 0], cycle: 1, totalHarvested: 0,
   });
   assert.ok(Object.isFrozen(TREE_RULES));
-  assert.equal(TREE_RULES.gameSeconds, 180);
-  assert.equal(TREE_RULES.feverBonusSeconds, 30);
+  assert.equal(TREE_RULES.gameSeconds, 150);
+  assert.deepEqual(TREE_RULES.feverBonusSecondsByTree, [30, 20, 10, 5]);
+  assert.ok(Object.isFrozen(TREE_RULES.feverBonusSecondsByTree));
   assert.equal(TREE_RULES.feverSeconds, 7);
   assert.equal(TREE_RULES.fruitRespawnMilliseconds, 250);
   assert.equal(TREE_RULES.extraPointsPerTree, 1);
@@ -199,7 +200,7 @@ test('나무를 두 번 완성해도 각 주기마다 피버 시작 때 한 번�
   for (let cycle = 1; cycle <= 2; cycle += 1) {
     const ready = addTreeGrowth(state, Array(100).fill(0));
     bonusSeconds += getTreeTimeBonus(state, ready);
-    assert.equal(bonusSeconds, cycle * 30);
+    assert.equal(bonusSeconds, [30, 50][cycle - 1]);
     state = ready;
     for (let index = 0; index < 5; index += 1) {
       const nextState = harvestTreeFruit(state, index).state;
@@ -212,7 +213,7 @@ test('나무를 두 번 완성해도 각 주기마다 피버 시작 때 한 번�
     assert.equal(state.cycle, cycle + 1);
     assert.equal(state.phase, 'growing');
   }
-  assert.equal(bonusSeconds, 60);
+  assert.equal(bonusSeconds, 50);
 });
 
 test('다른 나무 주기를 연결하거나 잘못된 상태를 전달해도 추가 시간을 주지 않는다', () => {
@@ -229,9 +230,9 @@ test('다른 나무 주기를 연결하거나 잘못된 상태를 전달해도 �
 });
 
 test('N번째 나무는 단계마다 N개씩 블록이 더 필요하다', () => {
-  assert.deepEqual(getTreeGoals(1), { extra: 1, saplingPoints: 16, maturePoints: 37, pointsPerFruit: 6, fullPoints: 67 });
-  assert.deepEqual(getTreeGoals(2), { extra: 2, saplingPoints: 17, maturePoints: 39, pointsPerFruit: 7, fullPoints: 74 });
-  assert.deepEqual(getTreeGoals(5), { extra: 5, saplingPoints: 20, maturePoints: 45, pointsPerFruit: 10, fullPoints: 95 });
+  assert.deepEqual(getTreeGoals(1), { extra: 1, saplingPoints: 16, maturePoints: 37, pointsPerFruit: 6, fullPoints: 67, feverBonusSeconds: 30 });
+  assert.deepEqual(getTreeGoals(2), { extra: 2, saplingPoints: 17, maturePoints: 39, pointsPerFruit: 7, fullPoints: 74, feverBonusSeconds: 20 });
+  assert.deepEqual(getTreeGoals(5), { extra: 5, saplingPoints: 20, maturePoints: 45, pointsPerFruit: 10, fullPoints: 95, feverBonusSeconds: 5 });
   for (const cycle of [undefined, null, 0, -1, 1.5, '2', NaN]) {
     assert.deepEqual(getTreeGoals(cycle), getTreeGoals(1), String(cycle));
   }
@@ -266,7 +267,7 @@ test('두 번째 나무부터는 어린 나무·큰 나무·열매까지 블록�
   const ready = addTreeGrowth(state, [2]);
   assert.equal(ready.points, 74);
   assert.equal(ready.phase, 'harvest');
-  assert.equal(getTreeTimeBonus(state, ready), 30);
+  assert.equal(getTreeTimeBonus(state, ready), 20);
 
   const fifth = { ...createTreeState(), cycle: 5 };
   assert.equal(getTreeStage(addTreeGrowth(fifth, Array(19).fill(0))), 'sprout');
@@ -277,4 +278,17 @@ test('두 번째 나무부터는 어린 나무·큰 나무·열매까지 블록�
   assert.equal(addTreeGrowth(fifth, Array(94).fill(0)).fruitSlots.length, 4);
   assert.equal(addTreeGrowth(fifth, Array(95).fill(0)).phase, 'harvest');
   assert.equal(addTreeGrowth(fifth, Array(300).fill(0)).points, 95);
+});
+
+test('피버 추가 시간은 나무마다 30·20·10초로 줄고 네 번째 나무부터 5초로 고정된다', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 20].map((cycle) => getTreeGoals(cycle).feverBonusSeconds), [30, 20, 10, 5, 5, 5, 5]);
+  let state = createTreeState();
+  const bonuses = [];
+  for (let cycle = 1; cycle <= 6; cycle += 1) {
+    const ready = addTreeGrowth(state, Array(200).fill(0));
+    assert.equal(ready.cycle, cycle);
+    bonuses.push(getTreeTimeBonus(state, ready));
+    state = finishTreeHarvest(ready);
+  }
+  assert.deepEqual(bonuses, [30, 20, 10, 5, 5, 5]);
 });

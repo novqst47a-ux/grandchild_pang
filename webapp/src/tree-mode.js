@@ -1,6 +1,7 @@
 export const TREE_RULES = Object.freeze({
-  gameSeconds: 180,
-  feverBonusSeconds: 30,
+  gameSeconds: 150,
+  // 피버 진입 시 더하는 본 게임 시간. N번째 나무는 N번째 값을 쓰고, 그 뒤로는 마지막 값으로 고정한다.
+  feverBonusSecondsByTree: Object.freeze([30, 20, 10, 5]),
   feverSeconds: 7,
   fruitRespawnMilliseconds: 250,
   // 단계별 기본 블록 수. 어린 나무까지 15, 큰 나무까지 20(=35-15), 열매 하나에 5.
@@ -15,18 +16,22 @@ export const TREE_RULES = Object.freeze({
 
 // 나무를 완성할 때마다 다음 나무는 단계마다 나무 번호만큼 블록이 더 필요하다.
 // 1번째 나무: 16 → 37, 열매당 6 (총 67). 5번째 나무: 20 → 45, 열매당 10 (총 95).
+// 피버 추가 시간도 나무마다 줄어든다: 30 → 20 → 10 → 5초(이후 고정).
 export function getTreeGoals(cycle = 1) {
   const tree = Number.isSafeInteger(cycle) && cycle > 0 ? cycle : 1;
   const extra = TREE_RULES.extraPointsPerTree * tree;
   const saplingPoints = TREE_RULES.saplingPoints + extra;
   const maturePoints = saplingPoints + (TREE_RULES.maturePoints - TREE_RULES.saplingPoints) + extra;
   const pointsPerFruit = TREE_RULES.pointsPerFruit + extra;
+  const bonuses = TREE_RULES.feverBonusSecondsByTree;
+  const feverBonusSeconds = bonuses[Math.min(tree, bonuses.length) - 1];
   return {
     extra,
     saplingPoints,
     maturePoints,
     pointsPerFruit,
     fullPoints: maturePoints + pointsPerFruit * TREE_RULES.fruitCount,
+    feverBonusSeconds,
   };
 }
 
@@ -55,7 +60,7 @@ export function getTreeTimeBonus(previousState, nextState) {
     && Number.isSafeInteger(previousState.cycle)
     && previousState.cycle > 0
     && previousState.cycle === nextState.cycle
-    ? TREE_RULES.feverBonusSeconds
+    ? getTreeGoals(previousState.cycle).feverBonusSeconds
     : 0;
 }
 
