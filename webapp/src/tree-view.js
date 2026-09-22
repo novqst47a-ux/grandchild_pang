@@ -87,12 +87,8 @@ export function createTreeView({ panel, scene, harvestOverlay, onHarvest }) {
       harvestOverlay.querySelector('#harvestCount').textContent = `${state.harvestCount}개 수확`;
       const timer = harvestOverlay.querySelector('#harvestTimer');
       timer.textContent = `${feverRemaining}초`;
-      timer.classList.toggle('low', feverRemaining <= 5);
+      timer.classList.toggle('low', feverRemaining <= 3);
       find('treeTotal').textContent = `${state.totalHarvested}개`;
-      for (const step of panel.querySelectorAll('[data-tree-step]')) {
-        if (step.dataset.treeStep === stage) step.setAttribute('aria-current', 'step');
-        else step.removeAttribute('aria-current');
-      }
       for (const [fruits, interactive] of [[previewFruits, false], [harvestFruits, true]]) {
         fruits.forEach(({ button, photo }, index) => {
           const slot = state.fruitSlots[index];

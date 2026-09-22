@@ -1,13 +1,13 @@
 export const TREE_RULES = Object.freeze({
   gameSeconds: 180,
-  feverBonusSeconds: 60,
-  feverSeconds: 15,
+  feverBonusSeconds: 30,
+  feverSeconds: 7,
   fruitRespawnMilliseconds: 250,
   saplingPoints: 15,
   maturePoints: 35,
   pointsPerFruit: 5,
   fruitCount: 5,
-  harvestBonus: 200,
+  harvestBonus: 10,
 });
 
 const FULL_TREE_POINTS = TREE_RULES.maturePoints

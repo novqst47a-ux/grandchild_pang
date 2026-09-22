@@ -203,13 +203,13 @@ function startHarvestFever() {
   if (!isTreeHarvest() || feverTimerId || busy || gameOver) return;
   hideCelebration();
   stopPraiseEffects();
-  // 연쇄와 섞기를 모두 마친 뒤, 열매를 누를 수 있는 시점부터 15초를 보장한다.
+  // 연쇄와 섞기를 모두 마친 뒤, 열매를 누를 수 있는 시점부터 피버 시간을 온전히 보장한다.
   feverClock.start(TREE_RULES.feverSeconds);
   const session = gameSession;
   feverTimerId = setInterval(() => {
     if (session === gameSession) refreshHarvestFever();
   }, 100);
-  setMessage('15초 수확 피버!', '열매를 최대한 많이 따 보세요 · 본 게임 시간은 멈춰요');
+  setMessage(`${TREE_RULES.feverSeconds}초 수확 피버!`, '열매를 최대한 많이 따 보세요 · 본 게임 시간은 멈춰요');
 }
 
 function setMessage(title, detail = '', treeNotice = false) {
@@ -699,7 +699,7 @@ function startGame(mode, initialScore = 0) {
   if (mode === GAME_MODES.TIMED) {
     setMessage('3분 도전을 시작해요!', '블록을 누르고, 옆 블록을 눌러 보세요');
   } else if (mode === GAME_MODES.TREE) {
-    setMessage('3분 동안 나무를 키워 볼까요?', '수확 피버마다 1분을 더 받아요');
+    setMessage('3분 동안 나무를 키워 볼까요?', `수확 피버마다 ${TREE_RULES.feverBonusSeconds}초를 더 받아요`);
   } else if (score > 0) {
     setMessage('지난 점수에서 이어서 해요', `${score.toLocaleString('ko-KR')}점부터 새 게임판에서 시작해요`);
   } else {
