@@ -8,7 +8,7 @@
 //
 // 캐시 이름 올리기는 여전히 권장한다. 그래야 한 번에 갈아끼워지고, 모듈 여러 개가
 // 한 판에서 서로 다른 버전으로 섞이는 경우를 피할 수 있다. 다만 이제 필수는 아니다.
-const CACHE = 'sonjupang-mvp-v25'; // v25: 피버 7초·보너스 조정, 성장 패널 축소
+const CACHE = 'sonjupang-mvp-v26'; // v26: 나무마다 성장 필요 블록 증가
 const FRAME_MANIFEST = './assets/frames/frames.json';
 const ASSETS = [
   './',

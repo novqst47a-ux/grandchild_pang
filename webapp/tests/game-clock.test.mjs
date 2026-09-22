@@ -166,7 +166,7 @@ test('두 번의 7초 피버 동안 기본 시간은 멈추고 반복 수확은 
   advance(30_250);
   assert.equal(clock.remaining(), 150);
   for (const [cycle, frozenSeconds] of [[1, 180], [2, 200]]) {
-    updateTree(addTreeGrowth(state, Array(60).fill(0)));
+    updateTree(addTreeGrowth(state, Array(100).fill(0)));
     assert.equal(clock.remaining(), frozenSeconds);
     assert.equal(clock.isRunning(), false);
     assert.equal(bonuses, cycle * 30);
