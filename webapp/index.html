@@ -49,8 +49,37 @@
     </section>
 
     <section class="game-area" aria-label="매치3 게임판">
+      <aside class="tree-panel" id="treePanel" aria-label="나무 성장" hidden>
+        <div class="tree-content">
+          <div class="tree-scene" id="treeScene" data-stage="sprout">
+            <img class="tree-art" id="treeArt" src="assets/tree/sprout.png" alt="작은 새싹" draggable="false">
+            <div class="tree-fruits" id="treeFruits" role="group" aria-label="나무의 열매"></div>
+            <span class="tree-growth-pop" id="treeGrowthPop" aria-hidden="true"></span>
+          </div>
+          <div class="tree-details">
+            <span class="tree-cycle" id="treeCycle">첫 번째 나무</span>
+            <div class="tree-stage-line"><strong id="treeStageName">새싹</strong><span id="treePointCount">0 성장</span></div>
+            <progress class="tree-progress" id="treeProgress" max="15" value="0" aria-label="새싹 키우기"></progress>
+            <p class="tree-next" id="treeNext">15개를 모으면 어린나무가 돼요</p>
+            <p class="tree-harvest-total">지금까지 수확 <strong id="treeTotal">0개</strong></p>
+          </div>
+        </div>
+        <ol class="tree-steps" aria-label="나무 성장 단계">
+          <li data-tree-step="sprout" aria-current="step">1 새싹</li>
+          <li data-tree-step="sapling">2 어린나무</li>
+          <li data-tree-step="mature">3 큰 나무</li>
+        </ol>
+      </aside>
       <div class="board-wrap">
         <div class="board" id="board" role="grid" aria-label="5행 5열 게임판" aria-busy="false"></div>
+        <section class="harvest-overlay is-harvesting" id="harvestOverlay" aria-labelledby="harvestTitle" hidden>
+          <div class="harvest-heading"><strong id="harvestTitle">수확 피버!</strong><span class="harvest-timer" id="harvestTimer" role="timer" aria-label="피버 남은 시간">15초</span></div>
+          <div class="harvest-scene">
+            <img class="tree-art" src="assets/tree/mature.png" alt="열매가 가득 열린 큰 나무" draggable="false">
+            <div class="tree-fruits" id="harvestFruits" role="group" aria-label="수확할 열매"></div>
+          </div>
+          <p class="harvest-guide"><strong id="harvestCount">0개 수확</strong> · 계속 눌러 보세요</p>
+        </section>
         <!-- 축하 그림 위로 사진 블록 한 장이 크게 뜬다(기획 §2.1 보강).
              손주 사진을 크게 보고 싶다는 요청이라 판 위로 넘칠 만큼 키운다. -->
         <div class="celebration-popup" id="celebrationPopup" hidden aria-hidden="true">
@@ -84,7 +113,7 @@
   </main>
 
   <!-- 첫 진입과 새 게임 때 반드시 모드를 고른다. 기록을 남기지 않는 무제한과
-       브라우저 안에 1~3위를 보관하는 3분 도전을 한 화면에서 비교할 수 있다. -->
+       브라우저 안에 모드별 1~3위를 보관하는 두 모드를 한 화면에서 비교할 수 있다. -->
   <dialog class="mode-dialog" id="modeDialog" aria-labelledby="modeTitle">
     <div class="mode-content">
       <span class="mode-kicker">게임을 시작해 볼까요?</span>
@@ -101,11 +130,22 @@
           <strong>무제한</strong>
           <span>횟수와 시간 제한 없이 해요<br>순위에는 남지 않아요</span>
         </button>
+        <button class="mode-choice tree" id="treeModeButton" type="button">
+          <img class="mode-tree-art" src="assets/tree/sapling.png" alt="" draggable="false">
+          <strong>나무 키우기 <span class="mode-new-label">새 모드</span></strong>
+          <span>3분 동안 키워요 · 1~3위 저장<br>15초 수확 피버 · 본 게임 +1분과 시간 멈춤</span>
+        </button>
       </div>
-      <section class="ranking-panel" aria-labelledby="modeRankingTitle">
-        <h3 id="modeRankingTitle">3분 도전 최고 기록</h3>
-        <ol class="ranking-list" id="modeRankingList"></ol>
-      </section>
+      <div class="mode-rankings">
+        <section class="ranking-panel" aria-labelledby="modeRankingTitle">
+          <h3 id="modeRankingTitle">3분 도전 최고 기록</h3>
+          <ol class="ranking-list" id="modeRankingList"></ol>
+        </section>
+        <section class="ranking-panel" aria-labelledby="treeRankingTitle">
+          <h3 id="treeRankingTitle">나무 키우기 최고 기록</h3>
+          <ol class="ranking-list" id="treeRankingList"></ol>
+        </section>
+      </div>
     </div>
   </dialog>
 

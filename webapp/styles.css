@@ -138,6 +138,98 @@ button:focus-visible, input:focus-visible, canvas:focus-visible { outline: 4px s
 /* §9 연쇄 처리 중. cursor: wait는 터치 기기에서 아무것도 알려주지 않는다.
    판 전체를 못 누르게 막고 밝기로 "지금은 기다리는 중"을 보인다. 문구는 띄우지 않는다. */
 .board.busy { pointer-events: none; filter: brightness(.96); }
+
+/* 나무 키우기: 넓은 화면의 왼쪽 정원, 작은 화면의 게임판 위 정원. */
+.tree-mode { width: min(100%, 1080px); }
+.tree-mode .game-area { display: flex; align-items: center; justify-content: center; gap: 24px; }
+.tree-mode .board-wrap { width: min(100%, 672px); min-width: 0; margin: 0; }
+.tree-mode .board { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(5, auto); }
+.tree-mode .tile { width: 100%; height: auto; min-height: 0; aspect-ratio: 1; }
+.tree-mode .help-row { max-width: 672px; margin-left: auto; }
+.tree-mode .status-card .mode-name { font-size: var(--t-body-s); white-space: nowrap; }
+.tree-panel { flex: 0 0 248px; min-width: 0; padding: 12px; background: var(--surface); border: 3px solid var(--success); border-radius: var(--r-xl); box-shadow: 0 6px 0 var(--success-lip); }
+.tree-panel[hidden], .tree-fruit[hidden], .harvest-overlay[hidden] { display: none; }
+.tree-cycle { display: inline-block; margin-bottom: 5px; padding: 2px 8px; border-radius: var(--r-full); background: var(--success-tint); color: var(--success-lip); font-size: var(--t-caption); font-weight: 800; text-align: center; }
+.tree-scene { position: relative; width: 100%; aspect-ratio: 1; margin: 0 auto 8px; isolation: isolate; background: radial-gradient(ellipse at 50% 64%, var(--success-tint), transparent 70%); }
+.tree-art { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-select: none; user-select: none; }
+.tree-art.tree-grown { animation: tree-grow var(--m-celebrate) var(--e-bounce); }
+.tree-fruits { position: absolute; inset: 0; }
+.tree-fruit { position: absolute; width: 24%; height: auto; aspect-ratio: 1; padding: 0; border: 0; border-radius: 50%; background: transparent; transform: translate(-50%, -50%); touch-action: manipulation; -webkit-touch-callout: none; user-select: none; }
+.tree-fruit[data-fruit="0"] { left: 31%; top: 27%; }
+.tree-fruit[data-fruit="1"] { left: 72%; top: 27%; }
+.tree-fruit[data-fruit="2"] { left: 51%; top: 54%; }
+.tree-fruit[data-fruit="3"] { left: 21%; top: 60%; }
+.tree-fruit[data-fruit="4"] { left: 81%; top: 60%; }
+.tree-fruit-shell { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.tree-fruit-photo { position: absolute; left: 23%; top: 31%; width: 54%; height: 54%; object-fit: cover; border: 2px solid #fff; border-radius: 50%; pointer-events: none; }
+.tree-fruit:disabled { opacity: 1; cursor: default; }
+.is-harvesting .tree-fruit:not(:disabled) { cursor: pointer; outline: 3px solid var(--reward); outline-offset: 1px; background: var(--surface-warm); animation: fruit-shine 1600ms ease-in-out infinite; }
+.is-harvesting .tree-fruit:focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; }
+.tree-fruit:active:not(:disabled) { transform: translate(-50%, -50%) scale(1.13); }
+.tree-fruit-shell, .tree-fruit-photo { transition: opacity var(--m-press) var(--e-standard), scale var(--m-press) var(--e-standard); }
+.tree-fruit.is-regrowing .tree-fruit-shell, .tree-fruit.is-regrowing .tree-fruit-photo { opacity: 0; scale: .45; }
+.is-harvesting .tree-fruit.is-regrowing { outline-color: transparent; background: transparent; animation: none; }
+.tree-fruit-bonus { position: absolute; inset: 0; display: grid; place-items: center; color: var(--success-lip); background: var(--surface); border-radius: var(--r-full); font-size: var(--t-body-s); font-weight: 900; opacity: 0; pointer-events: none; }
+.tree-fruit.is-regrowing .tree-fruit-bonus { opacity: 1; }
+.tree-growth-pop { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); white-space: nowrap; padding: 3px 10px; border-radius: var(--r-full); background: var(--success); color: white; font-size: var(--t-body-s); font-weight: 900; opacity: 0; pointer-events: none; }
+.tree-growth-pop.play { animation: tree-point 1100ms var(--e-exit) forwards; }
+.tree-stage-line { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.tree-stage-line strong { font-size: var(--t-body); color: var(--success-lip); }
+.tree-stage-line span { font-size: var(--t-caption); font-weight: 800; }
+.tree-progress { display: block; width: 100%; height: 14px; margin-top: 9px; overflow: hidden; appearance: none; border: 1px solid var(--success); border-radius: var(--r-full); background: var(--success-tint); color: var(--success); }
+.tree-progress::-webkit-progress-bar { background: var(--success-tint); }
+.tree-progress::-webkit-progress-value { background: var(--success); border-radius: var(--r-full); transition: width var(--m-slow) var(--e-standard); }
+.tree-progress::-moz-progress-bar { background: var(--success); border-radius: var(--r-full); }
+.tree-next { margin: 6px 0; font-size: var(--t-body-s); font-weight: 800; }
+.tree-harvest-total { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 0; padding-top: 6px; border-top: 1px solid var(--line); font-size: var(--t-body-s); }
+.tree-harvest-total strong { color: var(--success-lip); }
+.tree-steps { display: flex; justify-content: space-between; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
+.tree-steps li { padding: 3px 5px; border-radius: var(--r-full); color: var(--ink-soft); background: var(--surface-mute); font-size: var(--t-caption); font-weight: 800; }
+.tree-steps [aria-current="step"] { color: white; background: var(--success); }
+.tree-panel.is-harvesting { border-color: var(--carrot-deep); box-shadow: 0 6px 0 var(--carrot-lip); background: var(--surface-warm); }
+.is-harvesting .tree-stage-line strong { color: var(--carrot-deep); }
+.board.harvesting { filter: saturate(.4) opacity(.48); pointer-events: none; }
+.harvest-overlay { position: absolute; inset: 0; z-index: 7; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 4px; padding: clamp(8px, 2vw, 20px); text-align: center; background: radial-gradient(ellipse at 50% 50%, var(--success-tint), var(--surface-warm) 72%); border: 3px solid var(--carrot-deep); border-radius: clamp(17px, 4vw, 29px); box-shadow: 0 6px 0 var(--carrot-lip); animation: harvest-enter var(--m-base) var(--e-enter); }
+.harvest-heading { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.harvest-heading strong { color: var(--carrot-deep); font-size: var(--t-title); }
+.harvest-heading span { padding: 3px 8px; border-radius: var(--r-full); color: var(--success-lip); background: var(--surface); font-size: var(--t-body-s); font-weight: 800; }
+.harvest-heading .harvest-timer { min-width: 76px; color: white; background: var(--success); font-size: var(--t-section); font-variant-numeric: tabular-nums; }
+.harvest-heading .harvest-timer.low { background: var(--danger); }
+.harvest-scene { position: relative; height: 100%; max-width: 100%; min-height: 0; aspect-ratio: 1; margin-inline: auto; }
+.harvest-scene .tree-fruit { min-width: 56px; max-width: 88px; }
+.harvest-guide { margin: 0; color: var(--ink); font-size: var(--t-body-s); }
+.harvest-guide strong { color: var(--carrot-deep); }
+@keyframes harvest-enter { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes tree-grow { 0% { transform: scale(.85); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+@keyframes tree-point { 0% { opacity: 0; translate: 0 6px; } 15%, 65% { opacity: 1; } 100% { opacity: 0; translate: 0 -20px; } }
+@keyframes fruit-shine { 50% { box-shadow: 0 0 0 5px rgba(242, 183, 5, .32); } }
+@media (min-width: 961px) {
+  .tree-mode { --tile-size: min(120px, calc((100vw - 376px) / 5)); }
+}
+@media (max-width: 960px) {
+  .tree-mode { width: min(100%, 760px); }
+  .tree-mode .game-area { flex-direction: column; gap: 14px; }
+  .tree-mode .help-row { margin-inline: auto; }
+  .tree-panel { flex: auto; width: 100%; max-width: 672px; padding: 8px 12px; }
+  .tree-content { display: grid; grid-template-columns: minmax(104px, .42fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+  .tree-scene { max-width: 148px; margin-block: 0; }
+  .tree-details { padding-block: 0; }
+  .tree-steps { margin-top: 6px; justify-content: center; gap: 10px; }
+  .tree-stage-line { flex-wrap: wrap; }
+}
+@media (max-width: 560px) {
+  .tree-mode .game-area { gap: 12px; }
+  .tree-panel { padding: 8px; border-radius: var(--r-lg); }
+  .tree-content { grid-template-columns: minmax(96px, .55fr) minmax(0, 1fr); gap: 8px; }
+  .tree-stage-line, .tree-harvest-total { gap: 3px; }
+  .tree-next { margin-bottom: 6px; }
+  .tree-harvest-total { margin-top: 5px; padding-top: 5px; flex-wrap: wrap; }
+  .tree-steps { gap: 8px; }
+  .tree-mode .status-card { flex-basis: 88px; }
+  .tree-mode .status-card .mode-name { font-size: var(--t-body-s); }
+  .harvest-heading strong { font-size: var(--t-section); }
+  .harvest-heading span { font-size: var(--t-caption); }
+}
 /* §9 첫 진입 — 스피너 금지. 판 모양 그대로 25칸을 깔아 둔다. */
 .tile-skeleton { width: var(--tile-size); height: var(--tile-size); background: var(--line); border-radius: clamp(12px, 2.4vw, 24px); }
 
@@ -408,11 +500,16 @@ dialog { max-width: none; }
 .mode-choice:active { background: var(--surface-mute); }
 .mode-choice.timed { border-color: var(--carrot-deep); }
 .mode-choice.unlimited { border-color: var(--success); }
+.mode-choice.tree { grid-column: 1 / -1; grid-template-columns: 84px 1fr; justify-items: start; align-items: center; gap: 5px 14px; min-height: 126px; padding: 12px 18px; text-align: start; border-color: var(--success); background: var(--success-tint); }
+.mode-choice.tree > span:last-child { grid-column: 2; }
+.mode-tree-art { grid-row: 1 / 3; width: 84px; height: 84px; object-fit: contain; }
+.mode-new-label { display: inline-block; padding: 2px 7px; color: white; background: var(--success); border-radius: var(--r-full); font-size: var(--t-caption); vertical-align: middle; }
 .mode-choice .mode-icon { display: grid; place-items: center; width: 58px; height: 58px; color: white; background: var(--carrot-deep); border-radius: 50%; font-size: 1.895rem; line-height: 1; }
 .mode-choice.unlimited .mode-icon { background: var(--success); }
 .mode-choice strong { font-size: var(--t-section); }
 .mode-default-label { display: inline-block; padding: 2px 7px; color: white; background: var(--carrot-deep); border-radius: var(--r-full); font-size: var(--t-caption); vertical-align: middle; }
 .mode-choice > span:last-child { color: var(--ink-soft); font-size: var(--t-body-s); }
+.mode-rankings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .ranking-panel { margin-top: 20px; padding: 14px 16px; background: var(--surface-warm); border-radius: var(--r-md); }
 .ranking-panel h2, .ranking-panel h3 { margin: 0 0 8px; font-size: var(--t-body); text-align: center; }
 .ranking-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; counter-reset: rank; }
@@ -485,9 +582,12 @@ dialog { max-width: none; }
   .choice-card { padding: 8px 4px; }
   .mode-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
   .mode-content { padding: 22px 14px; }
+  .mode-rankings { grid-template-columns: 1fr; gap: 0; }
   .mode-actions { grid-template-columns: 1fr; gap: 10px; }
   .mode-choice { grid-template-columns: 62px 1fr; justify-items: start; align-items: center; min-height: 116px; padding: 12px; text-align: start; }
   .mode-choice .mode-icon { grid-row: 1 / 3; }
+  .mode-choice.tree { grid-template-columns: 62px 1fr; padding: 12px; gap: 6px; }
+  .mode-tree-art { width: 62px; height: 76px; }
   .mode-choice > span:last-child { grid-column: 2; }
   /* 작은 게임판 안의 종료 카드는 현재 순위 문구만 보여 준다. 전체 1~3위는 다음
      모드 선택 화면에서 확인할 수 있어, 버튼이 화면 밖으로 밀리지 않는다. */

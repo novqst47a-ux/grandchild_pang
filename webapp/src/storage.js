@@ -1,5 +1,5 @@
 import { BLOCK_FORMAT_VERSION } from './custom-blocks.js';
-import { normalizeTimedRankings, normalizeUnlimitedProgress } from './game-modes.js';
+import { addRanking, normalizeRankings, normalizeUnlimitedProgress } from './game-modes.js';
 
 const BLOCK_COUNT = 5;
 const DB_NAME = 'sonjupang-local';
@@ -7,6 +7,7 @@ const DB_STORE = 'settings';
 const WEB_KEY = 'custom-blocks';
 const EFFECT_KEY = 'praise-effects';
 const TIMED_RANKINGS_KEY = 'timed-rankings';
+const TREE_RANKINGS_KEY = 'tree-rankings';
 const UNLIMITED_PROGRESS_KEY = 'unlimited-progress';
 
 function emptyBlocks() {
@@ -32,12 +33,20 @@ function openWebDatabase() {
 async function webTransaction(mode, operation) {
   const database = await openWebDatabase();
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction(DB_STORE, mode);
-    const request = operation(transaction.objectStore(DB_STORE));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-    transaction.oncomplete = () => database.close();
-    transaction.onerror = () => { database.close(); reject(transaction.error); };
+    try {
+      const transaction = database.transaction(DB_STORE, mode);
+      let result;
+      // 요청 성공 뒤에도 저장 용량 등의 문제로 트랜잭션이 취소될 수 있다.
+      transaction.oncomplete = () => { database.close(); resolve(result); };
+      transaction.onerror = () => { database.close(); reject(transaction.error || new Error('저장 트랜잭션 오류')); };
+      transaction.onabort = () => { database.close(); reject(transaction.error || new Error('저장 트랜잭션 취소')); };
+      const request = operation(transaction.objectStore(DB_STORE));
+      request.onsuccess = () => { result = request.result; };
+      request.onerror = () => reject(request.error);
+    } catch (error) {
+      database.close();
+      reject(error);
+    }
   });
 }
 
@@ -100,12 +109,63 @@ export async function savePraiseSettings(settings) {
 // 사진 블록과 같은 IndexedDB 안에 두되 키는 분리한다. 무제한 모드는 이 함수를
 // 호출하지 않으므로 기록이 남지 않는다.
 export async function loadTimedRankings() {
-  return normalizeTimedRankings(await webTransaction('readonly', (store) => store.get(TIMED_RANKINGS_KEY)));
+  return normalizeRankings(await webTransaction('readonly', (store) => store.get(TIMED_RANKINGS_KEY)));
 }
 
 export async function saveTimedRankings(rankings) {
-  const normalized = normalizeTimedRankings(rankings);
+  const normalized = normalizeRankings(rankings);
   await webTransaction('readwrite', (store) => store.put(normalized, TIMED_RANKINGS_KEY));
+}
+
+export async function loadTreeRankings() {
+  return normalizeRankings(await webTransaction('readonly', (store) => store.get(TREE_RANKINGS_KEY)));
+}
+
+export async function saveTreeRankings(rankings) {
+  const normalized = normalizeRankings(rankings);
+  await webTransaction('readwrite', (store) => store.put(normalized, TREE_RANKINGS_KEY));
+}
+
+async function recordScore(key, score, playedAt = new Date().toISOString()) {
+  const candidate = normalizeRankings([{ score, playedAt }])[0];
+  if (!candidate) throw new TypeError('점수와 기록 날짜를 확인해 주세요');
+  const database = await openWebDatabase();
+  return new Promise((resolve, reject) => {
+    let transaction;
+    try {
+      transaction = database.transaction(DB_STORE, 'readwrite');
+      const store = transaction.objectStore(DB_STORE);
+      let result;
+      transaction.oncomplete = () => { database.close(); resolve(result); };
+      transaction.onerror = () => { database.close(); reject(transaction.error || new Error('랭킹 저장 오류')); };
+      transaction.onabort = () => { database.close(); reject(transaction.error || new Error('랭킹 저장 취소')); };
+      const request = store.get(key);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        try {
+          result = addRanking(request.result, candidate.score, candidate.playedAt);
+          const write = store.put(result.rankings, key);
+          write.onerror = () => reject(write.error);
+        } catch (error) {
+          reject(error);
+          transaction.abort();
+        }
+      };
+    } catch (error) {
+      database.close();
+      reject(error);
+      transaction?.abort();
+    }
+  });
+}
+
+// 읽기와 쓰기를 한 트랜잭션에 묶어 느린 초기 로드나 다른 탭의 기록을 덮어쓰지 않는다.
+export function recordTimedScore(score, playedAt) {
+  return recordScore(TIMED_RANKINGS_KEY, score, playedAt);
+}
+
+export function recordTreeScore(score, playedAt) {
+  return recordScore(TREE_RANKINGS_KEY, score, playedAt);
 }
 
 export async function loadUnlimitedProgress() {

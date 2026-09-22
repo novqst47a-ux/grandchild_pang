@@ -45,3 +45,20 @@ test('사용자가 고른 무제한 모드는 닫힘 이벤트에 덮어쓰이�
 
   assert.deepEqual(selected, [{ mode: GAME_MODES.UNLIMITED, usedDefault: false }]);
 });
+
+test('세 번째 선택인 나무 키우기를 한 번만 실행하며 닫힘 이벤트에 덮어쓰이지 않는다', () => {
+  const dialog = new FakeDialog();
+  const selected = [];
+  const controller = createModeSelectionController({
+    dialog,
+    onSelect: (mode, options) => selected.push({ mode, ...options }),
+  });
+
+  controller.begin();
+  assert.equal(controller.choose(GAME_MODES.TREE), true);
+  assert.equal(dialog.open, false);
+  dialog.close();
+  assert.equal(controller.choose(GAME_MODES.TIMED), false);
+
+  assert.deepEqual(selected, [{ mode: GAME_MODES.TREE, usedDefault: false }]);
+});
