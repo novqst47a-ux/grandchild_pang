@@ -5,12 +5,14 @@ import {
   UNLIMITED_CHECKPOINT,
   UNLIMITED_MAX_SCORE,
   UNLIMITED_RESUME_STATES,
+  addRanking,
   addTimedRanking,
   addUnlimitedScore,
   formatGameScore,
   formatRemainingTime,
   normalizeUnlimitedProgress,
   normalizeTimedRankings,
+  normalizeRankings,
   unlimitedResumeState,
 } from '../src/game-modes.js';
 
@@ -80,4 +82,43 @@ test('새 시간 제한 기록의 1~3위 진입 여부를 알려 준다', () => 
   const missed = addTimedRanking(existing, 100, '2026-08-04T00:00:00.000Z');
   assert.equal(missed.rank, null);
   assert.deepEqual(missed.rankings.map(({ score }) => score), [900, 600, 300]);
+});
+
+test('공통 랭킹은 점수와 날짜만 남기고 잘못된 데이터는 제외한다', () => {
+  const playedAt = '2026-09-22T00:00:00.000Z';
+  const invalidScores = [undefined, null, true, false, '', ' ', 'broken', NaN, Infinity, -1, Number.MAX_SAFE_INTEGER + 1];
+  const rankings = normalizeRankings([
+    ...invalidScores.map((score) => ({ score, playedAt })),
+    { score: 900, playedAt: 'invalid' },
+    { score: 800 },
+    null,
+    { score: '2400.9', playedAt, totalHarvested: 99 },
+    { score: 0, playedAt },
+  ]);
+  assert.deepEqual(rankings, [{ score: 2400, playedAt }, { score: 0, playedAt }]);
+  for (const value of [undefined, null, {}, 'broken']) assert.deepEqual(normalizeRankings(value), []);
+  assert.strictEqual(normalizeTimedRankings, normalizeRankings);
+  assert.strictEqual(addTimedRanking, addRanking);
+});
+
+test('같은 점수는 먼저 세운 기록을 우선하고 같은 시각이면 기존 기록을 우선한다', () => {
+  const earlier = '2026-09-20T00:00:00.000Z';
+  const later = '2026-09-21T00:00:00.000Z';
+  const existing = Object.freeze([
+    Object.freeze({ score: 5000, playedAt: later }),
+    Object.freeze({ score: 5000, playedAt: earlier }),
+    Object.freeze({ score: 1000, playedAt: earlier }),
+  ]);
+  const inserted = addRanking(existing, 5000, later);
+  assert.equal(inserted.rank, 3);
+  assert.deepEqual(inserted.rankings, [
+    { score: 5000, playedAt: earlier },
+    { score: 5000, playedAt: later },
+    { score: 5000, playedAt: later },
+  ]);
+  const missed = addRanking(inserted.rankings, 5000, later);
+  assert.equal(missed.rank, null);
+  assert.deepEqual(missed.rankings, inserted.rankings);
+  assert.deepEqual(existing.map(({ score }) => score), [5000, 5000, 1000]);
+  assert.deepEqual(addRanking(existing, null, later), { rankings: normalizeRankings(existing), rank: null });
 });

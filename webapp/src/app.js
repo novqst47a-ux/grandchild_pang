@@ -16,13 +16,16 @@ import {
   UNLIMITED_CHECKPOINT,
   UNLIMITED_MAX_SCORE,
   UNLIMITED_RESUME_STATES,
-  addTimedRanking,
+  addRanking,
   addUnlimitedScore,
   formatGameScore,
   formatRemainingTime,
   unlimitedResumeState,
 } from './game-modes.js';
 import { createModeSelectionController } from './mode-selection.js';
+import { TREE_RULES, createTreeState, addTreeGrowth, harvestTreeFruit, finishTreeHarvest, getTreeTimeBonus } from './tree-mode.js';
+import { createTreeView } from './tree-view.js';
+import { createGameClock } from './game-clock.js';
 import {
   BADGE_PATHS,
   BLOCK_FORMAT_VERSION,
@@ -56,10 +59,12 @@ import {
   loadCustomBlocks,
   loadPraiseSettings,
   loadTimedRankings,
+  loadTreeRankings,
   loadUnlimitedProgress,
+  recordTimedScore,
+  recordTreeScore,
   saveCustomBlocks,
   savePraiseSettings,
-  saveTimedRankings,
   saveUnlimitedProgress,
 } from './storage.js';
 
@@ -107,15 +112,21 @@ let selected = null;
 let busy = false;
 let score = 0;
 let gameMode = null;
+let treeState = createTreeState();
+let gameSession = 0;
+const treeView = createTreeView({ panel: $('#treePanel'), harvestOverlay: $('#harvestOverlay'), onHarvest: collectTreeFruit });
 let remainingSeconds = TIMED_GAME_SECONDS;
-let timedDeadline = 0;
+const gameClock = createGameClock();
+const feverClock = createGameClock();
 let timerId = 0;
+let feverTimerId = 0;
 let unlimitedExtended = false;
 let unlimitedProgressScore = null;
 let unlimitedProgressDirty = false;
 let unlimitedProgressQueue = Promise.resolve();
 let unlimitedSaveWarningShown = false;
 let timedRankings = [];
+let treeRankings = [];
 let gameOver = false;
 let hintKeys = new Set();
 let transientClasses = new Map();
@@ -124,6 +135,82 @@ let ignoreClickUntil = 0;
 let celebrationTimer;
 
 function blockImage(type) { return customImages[type] || defaultImages[type]; }
+
+function isTreeHarvest() { return gameMode === GAME_MODES.TREE && treeState.phase === 'harvest'; }
+function hasTimeLimit() { return gameMode === GAME_MODES.TIMED || gameMode === GAME_MODES.TREE; }
+
+function renderTree() {
+  const active = gameMode === GAME_MODES.TREE;
+  $('.app-shell').classList.toggle('tree-mode', active);
+  treeView.render({
+    state: treeState, active, busy: busy || gameOver,
+    feverRemaining: feverTimerId ? feverClock.remaining() : TREE_RULES.feverSeconds,
+    photoForSlot: (slot) => customPhotos[slot] || blockImage(slot),
+    slotName: (slot) => customImages[slot] ? '사진' : DEFAULT_BLOCKS[slot].name,
+  });
+  $('#hintButton').disabled = isTreeHarvest();
+}
+
+function collectTreeFruit(index) {
+  refreshHarvestFever();
+  refreshTimedClock();
+  if (!isTreeHarvest() || !feverTimerId || busy || gameOver) return;
+  if (feverClock.remaining() === 0) { finishHarvestFever(); return; }
+  const result = harvestTreeFruit(treeState, index);
+  if (!result.awarded) return;
+  treeState = result.state;
+  score += result.awarded;
+  updateStats();
+  playTone(660 + (treeState.harvestCount % 5) * 90, .045);
+  buzz(15);
+  renderTree();
+  setMessage(`${treeState.harvestCount}개 수확! 보너스 +${result.awarded}점`, '열매가 다시 열려요. 계속 눌러 보세요');
+  treeView.focusFruit({ afterIndex: index });
+}
+
+function stopHarvestFever() {
+  clearInterval(feverTimerId);
+  feverTimerId = 0;
+  feverClock.stop();
+}
+
+function finishHarvestFever() {
+  if (!isTreeHarvest() || !feverTimerId || gameOver) return;
+  const count = treeState.harvestCount;
+  const photoSlot = treeState.fruitSlots.find((slot) => customImages[slot]) ?? null;
+  stopHarvestFever();
+  treeState = finishTreeHarvest(treeState);
+  gameClock.resume();
+  remainingSeconds = gameClock.remaining();
+  updateStats();
+  renderBoard();
+  setMessage(`피버 끝! 열매 ${count}개 수확했어요`, `수확 보너스 ${(count * TREE_RULES.harvestBonus).toLocaleString('ko-KR')}점 · 다음 나무를 키워 보세요`);
+  if (count > 0) {
+    playMatchSound(3);
+    showCelebration(3, photoSlot);
+    praiseMatched(photoSlot, 3);
+  }
+  boardElement.querySelector('.tile')?.focus();
+}
+
+function refreshHarvestFever() {
+  if (!feverTimerId || !isTreeHarvest() || gameOver) return;
+  if (feverClock.remaining() === 0) { finishHarvestFever(); return; }
+  renderTree();
+}
+
+function startHarvestFever() {
+  if (!isTreeHarvest() || feverTimerId || busy || gameOver) return;
+  hideCelebration();
+  stopPraiseEffects();
+  // 연쇄와 섞기를 모두 마친 뒤, 열매를 누를 수 있는 시점부터 15초를 보장한다.
+  feverClock.start(TREE_RULES.feverSeconds);
+  const session = gameSession;
+  feverTimerId = setInterval(() => {
+    if (session === gameSession) refreshHarvestFever();
+  }, 100);
+  setMessage('15초 수확 피버!', '열매를 최대한 많이 따 보세요 · 본 게임 시간은 멈춰요');
+}
 
 function setMessage(title, detail = '') {
   messageTitle.textContent = title;
@@ -174,8 +261,8 @@ function animateScore(target) {
 
 function updateStats() {
   animateScore(score);
-  const timed = gameMode === GAME_MODES.TIMED;
-  statusLabel.textContent = timed ? '남은 시간' : '게임 모드';
+  const timed = hasTimeLimit();
+  statusLabel.textContent = timed ? isTreeHarvest() && !gameOver ? '시간 멈춤' : '남은 시간' : '게임 모드';
   statusValue.textContent = timed
     ? formatRemainingTime(remainingSeconds)
     : gameMode === GAME_MODES.UNLIMITED ? '무제한' : '선택';
@@ -184,14 +271,15 @@ function updateStats() {
 }
 
 function stopTimedClock() {
+  stopHarvestFever();
   clearInterval(timerId);
   timerId = 0;
-  timedDeadline = 0;
+  gameClock.stop();
 }
 
 function refreshTimedClock() {
-  if (gameMode !== GAME_MODES.TIMED || gameOver) return;
-  const next = Math.max(0, Math.ceil((timedDeadline - Date.now()) / 1000));
+  if (!hasTimeLimit() || gameOver) return;
+  const next = gameClock.remaining();
   if (next !== remainingSeconds) {
     remainingSeconds = next;
     updateStats();
@@ -208,8 +296,8 @@ function refreshTimedClock() {
 
 function startTimedClock() {
   stopTimedClock();
-  remainingSeconds = TIMED_GAME_SECONDS;
-  timedDeadline = Date.now() + TIMED_GAME_SECONDS * 1000;
+  remainingSeconds = gameMode === GAME_MODES.TREE ? TREE_RULES.gameSeconds : TIMED_GAME_SECONDS;
+  gameClock.start(remainingSeconds);
   updateStats();
   timerId = setInterval(refreshTimedClock, 250);
 }
@@ -218,15 +306,15 @@ function rankingDate(playedAt) {
   return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(new Date(playedAt));
 }
 
-function paintRankingList(list) {
+function paintRankingList(list, rankings) {
   const fragment = document.createDocumentFragment();
-  if (!timedRankings.length) {
+  if (!rankings.length) {
     const empty = document.createElement('li');
     empty.className = 'ranking-empty';
     empty.textContent = '아직 기록이 없어요';
     fragment.append(empty);
   } else {
-    for (const entry of timedRankings) {
+    for (const entry of rankings) {
       const item = document.createElement('li');
       const scoreText = document.createElement('span');
       scoreText.className = 'ranking-score';
@@ -243,16 +331,22 @@ function paintRankingList(list) {
 }
 
 function renderRankings() {
-  paintRankingList($('#modeRankingList'));
-  paintRankingList($('#resultRankingList'));
+  paintRankingList($('#modeRankingList'), timedRankings);
+  paintRankingList($('#treeRankingList'), treeRankings);
+  const isTree = gameMode === GAME_MODES.TREE;
+  $('#resultRankingTitle').textContent = isTree ? '나무 키우기 최고 기록' : '3분 도전 최고 기록';
+  paintRankingList($('#resultRankingList'), isTree ? treeRankings : timedRankings);
 }
 
-async function loadTimedRankingOptions() {
+async function loadRankingOptions(mode) {
+  const isTree = mode === GAME_MODES.TREE;
+  const initialRankings = isTree ? treeRankings : timedRankings;
   try {
-    timedRankings = await loadTimedRankings();
-  } catch {
-    timedRankings = [];
-  }
+    const stored = await (isTree ? loadTreeRankings() : loadTimedRankings());
+    // 저장소 응답이 늦어도 이미 끝낸 게임의 새 기록을 덮어쓰지 않는다.
+    if (isTree && treeRankings === initialRankings) treeRankings = stored;
+    if (!isTree && timedRankings === initialRankings) timedRankings = stored;
+  } catch { /* 기록을 읽지 못해도 게임은 시작할 수 있다. */ }
   renderRankings();
 }
 
@@ -390,7 +484,7 @@ function renderBoard() {
       button.setAttribute('aria-colindex', String(col + 1));
       button.setAttribute('aria-label', `${row + 1}행 ${col + 1}열, ${DEFAULT_BLOCKS[type].spoken}${button.dataset.selected === 'true' ? ', 선택됨' : ''}`);
       button.setAttribute('aria-selected', button.dataset.selected);
-      button.disabled = busy || gameOver;
+      button.disabled = busy || gameOver || isTreeHarvest();
       button.style.setProperty('--tile-lip', DEFAULT_BLOCKS[type].colors[1]);
       if (hintKeys.has(key)) button.classList.add('hint');
       const image = document.createElement('img');
@@ -411,6 +505,8 @@ function renderBoard() {
   boardElement.setAttribute('aria-busy', String(busy));
   // §9 연쇄 처리 중 — 판 전체를 못 누르게 하고 살짝 어둡게. 문구는 띄우지 않는다.
   boardElement.classList.toggle('busy', busy);
+  boardElement.classList.toggle('harvesting', isTreeHarvest() && !busy);
+  renderTree();
   if (focusKey) boardElement.querySelector(`[data-key="${focusKey}"]`)?.focus({ preventScroll: true });
 }
 
@@ -424,7 +520,8 @@ function handleTileKey(event, position) {
 }
 
 async function chooseTile(position) {
-  if (busy || gameOver) return;
+  refreshTimedClock();
+  if (busy || gameOver || isTreeHarvest()) return;
   hintKeys.clear();
   if (!selected) {
     selected = position;
@@ -449,6 +546,9 @@ async function chooseTile(position) {
 }
 
 async function trySwap(from, to) {
+  refreshTimedClock();
+  if (busy || gameOver || isTreeHarvest()) return;
+  const session = gameSession;
   busy = true;
   selected = null;
   const original = board;
@@ -456,6 +556,7 @@ async function trySwap(from, to) {
   transientClasses = new Map([[keyOf(from.row, from.col), 'spawned'], [keyOf(to.row, to.col), 'spawned']]);
   renderBoard();
   await sleep(190);
+  if (session !== gameSession || gameOver) return;
   const matches = findMatches(board);
   if (!matches.size) {
     board = original;
@@ -465,33 +566,39 @@ async function trySwap(from, to) {
     buzz(20); // 소리를 끈 어르신에게도 피드백이 남도록(계획 A6)
     renderBoard();
     await sleep(320);
-    if (gameOver) return;
+    if (session !== gameSession || gameOver) return;
     busy = false;
     transientClasses.clear();
     renderBoard();
     return;
   }
 
-  await processMatches();
-  if (gameOver) return;
+  await processMatches(session);
+  if (session !== gameSession || gameOver) return;
   if (!findValidMoves(board).length) {
     setMessage('새로 섞어 드릴게요', '맞출 수 있는 자리를 만들고 있어요');
     await sleep(450);
-    if (gameOver) return;
+    if (session !== gameSession || gameOver) return;
     board = reshuffle(board);
     transientClasses = new Map(board.flatMap((_, row) => board[row].map((__, col) => [keyOf(row, col), 'spawned'])));
     renderBoard();
     await sleep(DROP_MS);
   }
-  if (gameOver) return;
+  if (session !== gameSession || gameOver) return;
   busy = false;
   transientClasses.clear();
+  if (isTreeHarvest()) startHarvestFever();
   renderBoard();
+  if (isTreeHarvest()) {
+    treeView.focusFruit({ reveal: true });
+  }
 }
 
-async function processMatches() {
+async function processMatches(session) {
   let combo = 0;
-  while (!gameOver) {
+  while (!gameOver && session === gameSession) {
+    refreshTimedClock();
+    if (gameOver) return;
     const matches = findMatches(board);
     if (!matches.size) break;
     combo += 1;
@@ -501,6 +608,26 @@ async function processMatches() {
       ? addUnlimitedScore(score, gained, unlimitedExtended)
       : { score: score + gained, awarded: gained, checkpointReached: false, maxReached: false, atMax: false };
     score = scoreChange.score;
+    if (gameMode === GAME_MODES.TREE) {
+      const clearedSlots = [...matches].map((key) => {
+        const [row, col] = key.split(':').map(Number);
+        return board[row][col];
+      });
+      const photoSlots = customImages.flatMap((image, slot) => image ? [slot] : []);
+      const nextTreeState = addTreeGrowth(treeState, clearedSlots, photoSlots);
+      const timeBonus = getTreeTimeBonus(treeState, nextTreeState);
+      if (timeBonus) {
+        // 실제 성장→피버 전환에서만 한 번 더한다. 연쇄가 끝나기 전부터 시간을 멈춘다.
+        if (!gameClock.addSeconds(timeBonus)) {
+          remainingSeconds = 0;
+          endGame('time');
+          return;
+        }
+        gameClock.pause();
+        remainingSeconds = gameClock.remaining();
+      }
+      treeState = nextTreeState;
+    }
     if (gameMode === GAME_MODES.UNLIMITED && score !== previousScore) queueUnlimitedProgressSave(score);
     updateStats();
     transientClasses = new Map([...matches].map((key) => [key, 'matched']));
@@ -508,7 +635,7 @@ async function processMatches() {
       ? '만점! 정말 대단해요'
       : combo > 1 ? `${combo}번 연속! 대단해요` : `잘했어요! ${matches.size}개 모았어요`;
     const detail = scoreChange.awarded
-      ? `+${scoreChange.awarded.toLocaleString('ko-KR')}점`
+      ? `+${scoreChange.awarded.toLocaleString('ko-KR')}점${gameMode === GAME_MODES.TREE ? ' · 나무도 자라고 있어요' : ''}`
       : '점수는 만점, 게임은 계속할 수 있어요';
     setMessage(title, detail);
     // 큰 그림과 파티클은 같은 블록을 가리켜야 한다. 자리를 한 번만 골라 둘에 함께 넘긴다.
@@ -519,13 +646,13 @@ async function processMatches() {
     buzz(combo > 1 ? [35, 35, 55] : 35);
     renderBoard();
     await sleep(300);
-    if (gameOver) return;
+    if (session !== gameSession || gameOver) return;
     const collapsed = collapseBoard(board, matches);
     board = collapsed.board;
     transientClasses = new Map([...collapsed.spawned].map((key) => [key, 'spawned']));
     renderBoard();
     await sleep(DROP_MS);
-    if (gameOver) return;
+    if (session !== gameSession || gameOver) return;
 
     if (scoreChange.checkpointReached) {
       const keepPlaying = await askConfirm({
@@ -535,6 +662,7 @@ async function processMatches() {
         confirmLabel: '계속하기',
         cancelLabel: '여기까지',
       });
+      if (session !== gameSession || gameOver) return;
       if (!keepPlaying) {
         await endGame('unlimited-checkpoint');
         return;
@@ -548,8 +676,10 @@ async function processMatches() {
 }
 
 function startGame(mode, initialScore = 0) {
+  gameSession += 1;
   stopTimedClock();
   gameMode = mode;
+  treeState = createTreeState();
   board = makeBoard();
   selected = null;
   busy = false;
@@ -567,13 +697,15 @@ function startGame(mode, initialScore = 0) {
   updateStats();
   if (mode === GAME_MODES.TIMED) {
     setMessage('3분 도전을 시작해요!', '블록을 누르고, 옆 블록을 눌러 보세요');
+  } else if (mode === GAME_MODES.TREE) {
+    setMessage('3분 동안 나무를 키워 볼까요?', '수확 피버마다 1분을 더 받아요');
   } else if (score > 0) {
     setMessage('지난 점수에서 이어서 해요', `${score.toLocaleString('ko-KR')}점부터 새 게임판에서 시작해요`);
   } else {
     setMessage('제한 없이 천천히 즐겨 보세요', '블록을 누르고, 옆 블록을 눌러 보세요');
   }
   renderBoard();
-  if (mode === GAME_MODES.TIMED) startTimedClock();
+  if (hasTimeLimit()) startTimedClock();
 }
 
 async function endGame(reason) {
@@ -581,16 +713,25 @@ async function endGame(reason) {
   stopTimedClock();
   busy = false;
   gameOver = true;
+  const completedMode = gameMode;
+  const completedSession = gameSession;
+  hideCelebration();
+  stopPraiseEffects();
   updateStats();
   const scoreText = formatGameScore(score, gameMode);
   finalScore.textContent = scoreText === '만점' ? '만점' : `${scoreText}점`;
   boardOverlay.hidden = false;
-  resultRankingPanel.hidden = gameMode !== GAME_MODES.TIMED;
+  resultRankingPanel.hidden = !hasTimeLimit();
   if (gameMode === GAME_MODES.TIMED) {
     $('#overlayKicker').textContent = '3분 동안 참 잘했어요!';
     $('#overlayTitle').textContent = '시간 끝!';
     resultMessage.textContent = '최고 기록을 확인하고 있어요';
     setMessage('3분 도전을 마쳤어요', `${scoreText}점이에요`);
+  } else if (gameMode === GAME_MODES.TREE) {
+    $('#overlayKicker').textContent = '나무를 잘 키웠어요!';
+    $('#overlayTitle').textContent = '시간 끝!';
+    resultMessage.textContent = `열매 ${treeState.totalHarvested}개를 수확했어요`;
+    setMessage('나무 키우기를 마쳤어요', `${scoreText}점 · 열매 ${treeState.totalHarvested}개 수확`);
   } else {
     $('#overlayKicker').textContent = '참 잘했어요!';
     $('#overlayTitle').textContent = reason === 'unlimited-checkpoint' ? '멋진 기록이에요!' : '게임 끝';
@@ -601,23 +742,39 @@ async function endGame(reason) {
   renderBoard();
   $('#restartButton').focus();
 
-  if (gameMode === GAME_MODES.TIMED) {
-    const result = addTimedRanking(timedRankings, score);
-    timedRankings = result.rankings;
+  if (hasTimeLimit()) {
+    const isTree = completedMode === GAME_MODES.TREE;
+    const playedAt = new Date().toISOString();
+    const result = addRanking(isTree ? treeRankings : timedRankings, score, playedAt);
+    const harvested = treeState.totalHarvested;
+    const showRank = (rank) => {
+      const rankMessage = rank
+        ? `축하해요! ${rank}위 기록이에요`
+        : '이번 점수도 소중한 도전이에요';
+      resultMessage.textContent = isTree ? `열매 ${harvested}개 수확 · ${rankMessage}` : rankMessage;
+    };
+    if (isTree) treeRankings = result.rankings;
+    else timedRankings = result.rankings;
     renderRankings();
-    resultMessage.textContent = result.rank
-      ? `축하해요! ${result.rank}위 기록이에요`
-      : '이번 점수도 소중한 도전이에요';
+    showRank(result.rank);
     try {
-      await saveTimedRankings(timedRankings);
+      // 저장할 때 기존 기록과 함께 순위를 계산해, 초기 읽기가 늦거나 다른 탭에서
+      // 게임을 끝냈어도 더 높은 기록을 지우지 않는다.
+      const saved = await (isTree ? recordTreeScore(score, playedAt) : recordTimedScore(score, playedAt));
+      if (isTree && treeRankings === result.rankings) treeRankings = saved.rankings;
+      if (!isTree && timedRankings === result.rankings) timedRankings = saved.rankings;
+      renderRankings();
+      if (gameSession === completedSession) showRank(saved.rank);
     } catch {
-      resultMessage.textContent += ' · 이 브라우저에 기록을 남기지 못했어요';
+      if (gameSession === completedSession) {
+        resultMessage.textContent += ' · 이 브라우저에 기록을 남기지 못했어요';
+      }
     }
   }
 }
 
 function showHint() {
-  if (busy || gameOver) return;
+  if (busy || gameOver || isTreeHarvest()) return;
   const move = findValidMoves(board)[0];
   if (!move) return;
   hintKeys = new Set(move.map(({ row, col }) => keyOf(row, col)));
@@ -665,15 +822,16 @@ function finishDrag() {
 
 boardElement.addEventListener('pointerdown', (event) => {
   const tile = event.target.closest('.tile');
-  if (!tile || busy || gameOver) return;
+  if (!tile || busy || gameOver || isTreeHarvest()) return;
   const bounds = tile.getBoundingClientRect();
   swipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY, row: Number(tile.dataset.row), col: Number(tile.dataset.col), tile, size: bounds.width, dragging: false };
   clearPressed();
   tile.classList.add('pressed');
-  boardElement.setPointerCapture?.(event.pointerId);
+  // 원래 누른 블록에 캡처해야 pointerup 뒤 click도 그 블록으로 전달된다.
+  tile.setPointerCapture?.(event.pointerId);
 });
 boardElement.addEventListener('pointermove', (event) => {
-  if (!swipeStart || swipeStart.id !== event.pointerId || busy || gameOver) return;
+  if (!swipeStart || swipeStart.id !== event.pointerId || busy || gameOver || isTreeHarvest()) return;
   const distance = Math.hypot(event.clientX - swipeStart.x, event.clientY - swipeStart.y);
   if (distance > 7) beginDrag(event);
   if (swipeStart.dragging) {
@@ -689,7 +847,7 @@ boardElement.addEventListener('pointerup', (event) => {
   const wasDragging = swipeStart.dragging;
   finishDrag();
   swipeStart = null;
-  if (!busy && !gameOver && wasDragging && Math.max(Math.abs(dx), Math.abs(dy)) > 24) {
+  if (!busy && !gameOver && !isTreeHarvest() && wasDragging && Math.max(Math.abs(dx), Math.abs(dy)) > 24) {
     const target = { row: source.row + (Math.abs(dy) > Math.abs(dx) ? Math.sign(dy) : 0), col: source.col + (Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) : 0) };
     if (target.row >= 0 && target.row < BOARD_SIZE && target.col >= 0 && target.col < BOARD_SIZE) {
       ignoreClickUntil = performance.now() + 350;
@@ -706,7 +864,7 @@ for (const eventName of ['pointerup', 'pointercancel']) addEventListener(eventNa
 // 게임판 위에서는 쓸 일이 없고, 어르신은 이 창을 닫는 법을 몰라 게임이 멈춘다.
 // 판과 끌기 중인 그림에서만 막는다. 모달의 사진·글자에서는 평소대로 둔다.
 addEventListener('contextmenu', (event) => {
-  if (event.target.closest?.('.board, .drag-ghost, .celebration-popup')) event.preventDefault();
+  if (event.target.closest?.('.board, .drag-ghost, .celebration-popup, .tree-scene')) event.preventDefault();
 });
 
 // 확인 다이얼로그. 네이티브 window.confirm은 문구·색·포커스를 제어할 수 없고
@@ -751,8 +909,10 @@ confirmDialog.addEventListener('cancel', settleConfirmAsDismissed);
 confirmDialog.addEventListener('close', settleConfirmAsDismissed);
 
 function prepareModeSelection() {
+  gameSession += 1;
   stopTimedClock();
   gameMode = null;
+  treeState = createTreeState();
   board = makeBoard();
   selected = null;
   busy = false;
@@ -766,7 +926,7 @@ function prepareModeSelection() {
   hideCelebration();
   stopPraiseEffects();
   updateStats();
-  setMessage('게임 방법을 골라 주세요', '3분 도전 또는 무제한을 선택해 보세요');
+  setMessage('게임 방법을 골라 주세요', '3분 도전, 무제한, 나무 키우기 중에 골라 보세요');
   renderBoard();
 }
 
@@ -821,7 +981,7 @@ const modeSelection = createModeSelectionController({
       startUnlimitedFromSelection();
       return;
     }
-    startGame(GAME_MODES.TIMED);
+    startGame(mode);
     if (usedDefault) toast('3분 도전으로 바로 시작했어요', 'success');
   },
 });
@@ -835,6 +995,7 @@ function showModePicker() {
 
 $('#timedModeButton').addEventListener('click', () => modeSelection.choose(GAME_MODES.TIMED));
 $('#unlimitedModeButton').addEventListener('click', () => modeSelection.choose(GAME_MODES.UNLIMITED));
+$('#treeModeButton').addEventListener('click', () => modeSelection.choose(GAME_MODES.TREE));
 
 $('#hintButton').addEventListener('click', showHint);
 $('#restartButton').addEventListener('click', showModePicker);
@@ -1361,7 +1522,12 @@ async function initializeApp() {
   // 저장소를 먼저 읽어 첫 모드 선택 화면에 사진 블록과 랭킹이 함께 보이게 한다.
   // 저장이 늦을 때는 기본 블록·빈 랭킹으로 먼저 열고, 도착한 값만 나중에 다시 그린다.
   let prepared = false;
-  const ready = Promise.all([loadStoredBlocks(), loadTimedRankingOptions(), loadUnlimitedProgressOption()]).then(() => {
+  const ready = Promise.all([
+    loadStoredBlocks(),
+    loadRankingOptions(GAME_MODES.TIMED),
+    loadRankingOptions(GAME_MODES.TREE),
+    loadUnlimitedProgressOption(),
+  ]).then(() => {
     // 아래 race가 타임아웃으로 끝난 뒤에 사진이 도착한 경우에만 다시 그린다.
     if (prepared) { renderSlots(); renderBoard(); renderRankings(); }
   });

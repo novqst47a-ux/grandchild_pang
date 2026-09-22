@@ -1,6 +1,7 @@
 export const GAME_MODES = Object.freeze({
   TIMED: 'timed',
   UNLIMITED: 'unlimited',
+  TREE: 'tree',
 });
 
 export const TIMED_GAME_SECONDS = 3 * 60;
@@ -56,13 +57,15 @@ export function unlimitedResumeState(value) {
 }
 
 function normalizedRanking(entry) {
+  if (typeof entry?.score !== 'number'
+    && (typeof entry?.score !== 'string' || !entry.score.trim())) return null;
   const score = Math.floor(Number(entry?.score));
   const playedAt = typeof entry?.playedAt === 'string' ? entry.playedAt : '';
   if (!Number.isSafeInteger(score) || score < 0 || !playedAt || Number.isNaN(Date.parse(playedAt))) return null;
   return { score, playedAt };
 }
 
-export function normalizeTimedRankings(value) {
+export function normalizeRankings(value) {
   if (!Array.isArray(value)) return [];
   return value
     .map(normalizedRanking)
@@ -71,12 +74,12 @@ export function normalizeTimedRankings(value) {
     .slice(0, RANKING_LIMIT);
 }
 
-export function addTimedRanking(rankings, score, playedAt = new Date().toISOString()) {
+export function addRanking(rankings, score, playedAt = new Date().toISOString()) {
   const candidate = normalizedRanking({ score, playedAt });
-  if (!candidate) return { rankings: normalizeTimedRankings(rankings), rank: null };
+  if (!candidate) return { rankings: normalizeRankings(rankings), rank: null };
 
   const positioned = [
-    ...normalizeTimedRankings(rankings).map((entry) => ({ entry, isNew: false })),
+    ...normalizeRankings(rankings).map((entry) => ({ entry, isNew: false })),
     { entry: candidate, isNew: true },
   ].sort((a, b) => b.entry.score - a.entry.score
     || Date.parse(a.entry.playedAt) - Date.parse(b.entry.playedAt)
@@ -87,3 +90,7 @@ export function addTimedRanking(rankings, score, playedAt = new Date().toISOStri
     rank: position >= 0 && position < RANKING_LIMIT ? position + 1 : null,
   };
 }
+
+// 기존 3분 모드에서 사용하던 이름도 유지한다.
+export const normalizeTimedRankings = normalizeRankings;
+export const addTimedRanking = addRanking;
